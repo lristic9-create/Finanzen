@@ -9,125 +9,157 @@
 <meta name="apple-mobile-web-app-title" content="Finanzen"/>
 <title>Finanzen - Kleingewerbe</title>
 <style>
-body{margin:0;background:#F2F2F7;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#F2F2F7;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;}
 #root{min-height:100vh;}
-#boot{display:flex;align-items:center;justify-content:center;height:100vh;font-family:-apple-system,sans-serif;flex-direction:column;gap:16px;color:#8E8E93;}
-.sp{width:40px;height:40px;border:3px solid #E5E5EA;border-top-color:#007AFF;border-radius:50%;animation:sp 1s linear infinite;}
+#boot{display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px;color:#8E8E93;font-size:16px;}
+.sp{width:44px;height:44px;border:3px solid #E5E5EA;border-top-color:#007AFF;border-radius:50%;animation:sp 1s linear infinite;}
 @keyframes sp{to{transform:rotate(360deg);}}
 </style>
 </head>
 <body>
-<div id="root"><div id="boot"><div class="sp"></div><div>Wird geladen...</div></div></div>
-<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-<script type="text/babel" data-presets="react">
+<div id="root">
+  <div id="boot">
+    <div class="sp"></div>
+    <div>Finanzen wird geladen...</div>
+  </div>
+</div>
+
+<script>
+// Load scripts sequentially to avoid race conditions
+function loadScript(src, cb) {
+  var s = document.createElement('script');
+  s.src = src;
+  s.onload = cb;
+  s.onerror = function() { document.getElementById('boot').innerHTML = '<div style="color:#FF3B30;text-align:center;padding:20px">Ladefehler. Bitte Seite neu laden.</div>'; };
+  document.head.appendChild(s);
+}
+
+loadScript('https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js', function() {
+  loadScript('https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js', function() {
+    loadScript('https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js', function() {
+      // Now transform and run our app
+      var appCode = document.getElementById('app-source').textContent;
+      try {
+        var transformed = Babel.transform(appCode, {presets: ['react', 'env']}).code;
+        var script = document.createElement('script');
+        script.textContent = transformed;
+        document.head.appendChild(script);
+      } catch(e) {
+        document.getElementById('boot').innerHTML = '<div style="color:#FF3B30;text-align:center;padding:20px">Fehler: ' + e.message + '</div>';
+      }
+    });
+  });
+});
+</script>
+
+<script type="text/plain" id="app-source">
 const { useState, useMemo, useEffect, useRef } = React;
 
-const INC_CATS = [“DJ Auftritt”,“Equipment Verleih”,“Kamera Verleih”,“Vermittlung”,“Sonstiges”];
-const EXP_CATS = [“Equipment Kauf”,“Equipment Reparatur”,“Fahrtkosten”,“Unterkunft”,“Marketing”,“Software & Tools”,“Versicherung”,“Steuerberater”,“Sonstiges”];
-const MONTHS   = [“Januar”,“Februar”,“Maerz”,“April”,“Mai”,“Juni”,“Juli”,“August”,“September”,“Oktober”,“November”,“Dezember”];
-const MONTHS_S = [“Jan”,“Feb”,“Mar”,“Apr”,“Mai”,“Jun”,“Jul”,“Aug”,“Sep”,“Okt”,“Nov”,“Dez”];
-const COLORS   = [”#007AFF”,”#34C759”,”#FF9500”,”#FF2D55”,”#AF52DE”,”#5AC8FA”,”#FF6B35”,”#30D158”];
-const PAY_S    = {paid:{l:“Bezahlt”,c:”#34C759”,bg:”#F0FFF4”},open:{l:“Offen”,c:”#FF9500”,bg:”#FFFBF0”},overdue:{l:“Ueberfaellig”,c:”#FF3B30”,bg:”#FFF5F5”}};
-const EV_S     = {confirmed:{l:“Bestaetigt”,c:”#34C759”,bg:”#F0FFF4”},pending:{l:“Ausstehend”,c:”#FF9500”,bg:”#FFFBF0”},cancelled:{l:“Abgesagt”,c:”#FF3B30”,bg:”#FFF5F5”}};
-const EFFORT   = {low:“Gering”,medium:“Mittel”,high:“Hoch”};
-const FREQ     = {monthly:“Monatlich”,quarterly:“Quartalsweise”,yearly:“Jaehrlich”};
+
+const INC_CATS = ["DJ Auftritt","Equipment Verleih","Kamera Verleih","Vermittlung","Sonstiges"];
+const EXP_CATS = ["Equipment Kauf","Equipment Reparatur","Fahrtkosten","Unterkunft","Marketing","Software & Tools","Versicherung","Steuerberater","Sonstiges"];
+const MONTHS   = ["Januar","Februar","Maerz","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+const MONTHS_S = ["Jan","Feb","Mar","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
+const COLORS   = ["#007AFF","#34C759","#FF9500","#FF2D55","#AF52DE","#5AC8FA","#FF6B35","#30D158"];
+const PAY_S    = {paid:{l:"Bezahlt",c:"#34C759",bg:"#F0FFF4"},open:{l:"Offen",c:"#FF9500",bg:"#FFFBF0"},overdue:{l:"Ueberfaellig",c:"#FF3B30",bg:"#FFF5F5"}};
+const EV_S     = {confirmed:{l:"Bestaetigt",c:"#34C759",bg:"#F0FFF4"},pending:{l:"Ausstehend",c:"#FF9500",bg:"#FFFBF0"},cancelled:{l:"Abgesagt",c:"#FF3B30",bg:"#FFF5F5"}};
+const EFFORT   = {low:"Gering",medium:"Mittel",high:"Hoch"};
+const FREQ     = {monthly:"Monatlich",quarterly:"Quartalsweise",yearly:"Jaehrlich"};
 const TODAY    = new Date();
 const TODAY_S  = TODAY.toISOString().slice(0,10);
-const fmt      = n => n.toLocaleString(“de-DE”,{style:“currency”,currency:“EUR”});
-const fmtD     = s => new Date(s).toLocaleDateString(“de-DE”,{day:“2-digit”,month:“short”});
+const fmt      = n => n.toLocaleString("de-DE",{style:"currency",currency:"EUR"});
+const fmtD     = s => new Date(s).toLocaleDateString("de-DE",{day:"2-digit",month:"short"});
 const sum      = (arr,fn) => arr.reduce((s,x)=>s+(fn(x)||0),0);
 
 const ENTRIES0 = [
-{id:1,date:“2026-01-15”,type:“income”,cat:“DJ Auftritt”,desc:“Club XY Silvester”,client:“Club XY GmbH”,amt:800,tax:true,status:“paid”,inv:“RE-2026-001”,note:””},
-{id:2,date:“2026-01-20”,type:“expense”,cat:“Fahrtkosten”,desc:“Benzin Auftritt”,client:””,amt:45,tax:true,status:“paid”,inv:””,note:””},
-{id:3,date:“2026-02-08”,type:“income”,cat:“Equipment Verleih”,desc:“Lautsprecher Hochzeit”,client:“Familie Mueller”,amt:350,tax:true,status:“paid”,inv:“RE-2026-002”,note:””},
-{id:4,date:“2026-03-03”,type:“income”,cat:“Kamera Verleih”,desc:“Sony A7 Modefirma”,client:“Studio Lens”,amt:180,tax:true,status:“open”,inv:“RE-2026-003”,note:””},
-{id:5,date:“2026-03-10”,type:“income”,cat:“Vermittlung”,desc:“Vermittlung Eventfirma”,client:“EventPro GmbH”,amt:250,tax:true,status:“paid”,inv:“RE-2026-004”,note:””},
-{id:6,date:“2026-03-22”,type:“expense”,cat:“Marketing”,desc:“Instagram Ads”,client:””,amt:80,tax:true,status:“paid”,inv:””,note:””},
-{id:7,date:“2026-04-05”,type:“income”,cat:“DJ Auftritt”,desc:“Firmen-Event”,client:“Tech AG Berlin”,amt:900,tax:true,status:“open”,inv:“RE-2026-005”,note:””},
-{id:8,date:“2026-04-07”,type:“expense”,cat:“Fahrtkosten”,desc:“Zug Berlin”,client:””,amt:62,tax:true,status:“paid”,inv:””,note:””},
+  {id:1,date:"2026-01-15",type:"income",cat:"DJ Auftritt",desc:"Club XY Silvester",client:"Club XY GmbH",amt:800,tax:true,status:"paid",inv:"RE-2026-001",note:""},
+  {id:2,date:"2026-01-20",type:"expense",cat:"Fahrtkosten",desc:"Benzin Auftritt",client:"",amt:45,tax:true,status:"paid",inv:"",note:""},
+  {id:3,date:"2026-02-08",type:"income",cat:"Equipment Verleih",desc:"Lautsprecher Hochzeit",client:"Familie Mueller",amt:350,tax:true,status:"paid",inv:"RE-2026-002",note:""},
+  {id:4,date:"2026-03-03",type:"income",cat:"Kamera Verleih",desc:"Sony A7 Modefirma",client:"Studio Lens",amt:180,tax:true,status:"open",inv:"RE-2026-003",note:""},
+  {id:5,date:"2026-03-10",type:"income",cat:"Vermittlung",desc:"Vermittlung Eventfirma",client:"EventPro GmbH",amt:250,tax:true,status:"paid",inv:"RE-2026-004",note:""},
+  {id:6,date:"2026-03-22",type:"expense",cat:"Marketing",desc:"Instagram Ads",client:"",amt:80,tax:true,status:"paid",inv:"",note:""},
+  {id:7,date:"2026-04-05",type:"income",cat:"DJ Auftritt",desc:"Firmen-Event",client:"Tech AG Berlin",amt:900,tax:true,status:"open",inv:"RE-2026-005",note:""},
+  {id:8,date:"2026-04-07",type:"expense",cat:"Fahrtkosten",desc:"Zug Berlin",client:"",amt:62,tax:true,status:"paid",inv:"",note:""},
 ];
 const RECUR0 = [
-{id:101,desc:“Adobe Creative Cloud”,cat:“Software & Tools”,amt:60,freq:“monthly”,next:“2026-05-01”,active:true},
-{id:102,desc:“Equipment-Versicherung”,cat:“Versicherung”,amt:180,freq:“yearly”,next:“2026-09-01”,active:true},
+  {id:101,desc:"Adobe Creative Cloud",cat:"Software & Tools",amt:60,freq:"monthly",next:"2026-05-01",active:true},
+  {id:102,desc:"Equipment-Versicherung",cat:"Versicherung",amt:180,freq:"yearly",next:"2026-09-01",active:true},
 ];
 const EVENTS0 = [
-{id:201,title:“DJ Set Club Berghain”,date:“2026-05-10”,end:“2026-05-11”,status:“confirmed”,effort:“high”,income:1200,costs:80,client:“Club Berghain”,loc:“Berlin”,notes:“2h Set”,todos:[{text:“Equipment packen”,done:false},{text:“Soundcheck”,done:false}]},
-{id:202,title:“Equipment Verleih Hochzeit”,date:“2026-05-18”,end:“2026-05-18”,status:“pending”,effort:“medium”,income:400,costs:30,client:“Familie Weber”,loc:“Hamburg”,notes:””,todos:[{text:“Lieferung bestaetigen”,done:false}]},
-{id:203,title:“Kamera Verleih Fotoshoot”,date:“2026-06-03”,end:“2026-06-03”,status:“confirmed”,effort:“low”,income:180,costs:0,client:“Studio Lena”,loc:“Muenchen”,notes:””,todos:[]},
+  {id:201,title:"DJ Set Club Berghain",date:"2026-05-10",end:"2026-05-11",status:"confirmed",effort:"high",income:1200,costs:80,client:"Club Berghain",loc:"Berlin",notes:"2h Set",todos:[{text:"Equipment packen",done:false},{text:"Soundcheck",done:false}]},
+  {id:202,title:"Equipment Verleih Hochzeit",date:"2026-05-18",end:"2026-05-18",status:"pending",effort:"medium",income:400,costs:30,client:"Familie Weber",loc:"Hamburg",notes:"",todos:[{text:"Lieferung bestaetigen",done:false}]},
+  {id:203,title:"Kamera Verleih Fotoshoot",date:"2026-06-03",end:"2026-06-03",status:"confirmed",effort:"low",income:180,costs:0,client:"Studio Lena",loc:"Muenchen",notes:"",todos:[]},
 ];
 const CLIENTS0 = [
-{id:301,name:“Club XY GmbH”,email:“booking@clubxy.de”,phone:”+49 30 123”,cat:“Club”,city:“Berlin”,notes:“Stammkunde”},
-{id:302,name:“EventPro GmbH”,email:“info@eventpro.de”,phone:””,cat:“Agentur”,city:“Hamburg”,notes:””},
+  {id:301,name:"Club XY GmbH",email:"booking@clubxy.de",phone:"+49 30 123",cat:"Club",city:"Berlin",notes:"Stammkunde"},
+  {id:302,name:"EventPro GmbH",email:"info@eventpro.de",phone:"",cat:"Agentur",city:"Hamburg",notes:""},
 ];
 const TRIPS0 = [
-{id:401,date:“2026-01-15”,from:“Hamburg”,to:“Berlin”,km:288,purpose:“Club XY Auftritt”,roundTrip:true,cpk:0.30},
-{id:402,date:“2026-04-07”,from:“Hamburg”,to:“Berlin”,km:288,purpose:“Firmen-Event”,roundTrip:true,cpk:0.30},
+  {id:401,date:"2026-01-15",from:"Hamburg",to:"Berlin",km:288,purpose:"Club XY Auftritt",roundTrip:true,cpk:0.30},
+  {id:402,date:"2026-04-07",from:"Hamburg",to:"Berlin",km:288,purpose:"Firmen-Event",roundTrip:true,cpk:0.30},
 ];
 
-const EF  = {date:TODAY_S,type:“income”,cat:INC_CATS[0],desc:””,client:””,amt:””,tax:true,status:“paid”,inv:””,note:””,customCat:””};
-const EEV = {title:””,date:TODAY_S,end:TODAY_S,status:“pending”,effort:“medium”,income:””,costs:””,client:””,loc:””,notes:””,todos:[]};
-const ECL = {name:””,email:””,phone:””,cat:””,city:””,notes:””};
-const ETR = {date:TODAY_S,from:””,to:””,km:””,purpose:””,roundTrip:true,cpk:0.30};
-const ER  = {desc:””,cat:EXP_CATS[0],amt:””,freq:“monthly”,next:TODAY_S,active:true};
+const EF  = {date:TODAY_S,type:"income",cat:INC_CATS[0],desc:"",client:"",amt:"",tax:true,status:"paid",inv:"",note:"",customCat:""};
+const EEV = {title:"",date:TODAY_S,end:TODAY_S,status:"pending",effort:"medium",income:"",costs:"",client:"",loc:"",notes:"",todos:[]};
+const ECL = {name:"",email:"",phone:"",cat:"",city:"",notes:""};
+const ETR = {date:TODAY_S,from:"",to:"",km:"",purpose:"",roundTrip:true,cpk:0.30};
+const ER  = {desc:"",cat:EXP_CATS[0],amt:"",freq:"monthly",next:TODAY_S,active:true};
 
 // ── STORAGE ─────────────────────────────────────────────────────
 async function loadFromStorage(key, fallback) {
-try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
 }
 async function saveToStorage(key, val) {
-try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
 }
 
 // ── MINI BAR CHART ────────────────────────────────────────────
 function BarChart({ data }) {
-const max = Math.max(…data.map(d => Math.max(d.ein, d.aus)), 1);
-return (
-<div style={{overflowX:“auto”}}>
-<div style={{display:“flex”,alignItems:“flex-end”,gap:“3px”,height:“110px”,minWidth:“360px”,padding:“0 4px”}}>
-{data.map((d,i) => (
-<div key={i} style={{flex:1,display:“flex”,flexDirection:“column”,alignItems:“center”,gap:“2px”}}>
-<div style={{flex:1,width:“100%”,display:“flex”,alignItems:“flex-end”,gap:“2px”}}>
-<div style={{flex:1,background:”#34C75988”,borderRadius:“3px 3px 0 0”,height:Math.max(2,Math.round((d.ein/max)*90))+”%”}}/>
-<div style={{flex:1,background:”#FF3B3088”,borderRadius:“3px 3px 0 0”,height:Math.max(2,Math.round((d.aus/max)*90))+”%”}}/>
-</div>
-<div style={{fontSize:“9px”,color:”#8E8E93”}}>{d.l}</div>
-</div>
-))}
-</div>
-<div style={{display:“flex”,gap:“12px”,marginTop:“6px”,fontSize:“11px”,color:”#8E8E93”}}>
-<span><span style={{color:”#34C759”}}>■</span> Einnahmen</span>
-<span><span style={{color:”#FF3B30”}}>■</span> Ausgaben</span>
-</div>
-</div>
-);
+  const max = Math.max(...data.map(d => Math.max(d.ein, d.aus)), 1);
+  return (
+    <div style={{overflowX:"auto"}}>
+      <div style={{display:"flex",alignItems:"flex-end",gap:"3px",height:"110px",minWidth:"360px",padding:"0 4px"}}>
+        {data.map((d,i) => (
+          <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:"2px"}}>
+            <div style={{flex:1,width:"100%",display:"flex",alignItems:"flex-end",gap:"2px"}}>
+              <div style={{flex:1,background:"#34C75988",borderRadius:"3px 3px 0 0",height:Math.max(2,Math.round((d.ein/max)*90))+"%"}}/>
+              <div style={{flex:1,background:"#FF3B3088",borderRadius:"3px 3px 0 0",height:Math.max(2,Math.round((d.aus/max)*90))+"%"}}/>
+            </div>
+            <div style={{fontSize:"9px",color:"#8E8E93"}}>{d.l}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{display:"flex",gap:"12px",marginTop:"6px",fontSize:"11px",color:"#8E8E93"}}>
+        <span><span style={{color:"#34C759"}}>■</span> Einnahmen</span>
+        <span><span style={{color:"#FF3B30"}}>■</span> Ausgaben</span>
+      </div>
+    </div>
+  );
 }
 
 // ── MODAL ─────────────────────────────────────────────────────
 function Modal({ open, onClose, title, children }) {
-if (!open) return null;
-return (
-<div onClick={e => e.target === e.currentTarget && onClose()} style={{position:“fixed”,inset:0,background:“rgba(0,0,0,.5)”,zIndex:200,display:“flex”,alignItems:“flex-end”,justifyContent:“center”}}>
-<div style={{background:”#F2F2F7”,borderRadius:“24px 24px 0 0”,width:“100%”,maxWidth:“560px”,maxHeight:“92vh”,overflowY:“auto”,paddingTop:“8px”}}>
-<div style={{width:“36px”,height:“4px”,background:”#C7C7CC”,borderRadius:“2px”,margin:“0 auto 14px”}}/>
-<div style={{padding:“14px 20px 12px”,background:”#F2F2F7”,position:“sticky”,top:0,zIndex:1,display:“flex”,justifyContent:“space-between”,alignItems:“center”}}>
-<div style={{fontSize:“19px”,fontWeight:700,color:”#1C1C1E”}}>{title}</div>
-<button onClick={onClose} style={{background:”#E5E5EA”,border:“none”,borderRadius:“50%”,width:“30px”,height:“30px”,cursor:“pointer”,fontSize:“16px”}}>✕</button>
-</div>
-<div style={{padding:“0 16px 40px”,display:“flex”,flexDirection:“column”,gap:“12px”}}>
-{children}
-</div>
-</div>
-</div>
-);
+  if (!open) return null;
+  return (
+    <div onClick={e => e.target === e.currentTarget && onClose()} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+      <div style={{background:"#F2F2F7",borderRadius:"24px 24px 0 0",width:"100%",maxWidth:"560px",maxHeight:"92vh",overflowY:"auto",paddingTop:"8px"}}>
+        <div style={{width:"36px",height:"4px",background:"#C7C7CC",borderRadius:"2px",margin:"0 auto 14px"}}/>
+        <div style={{padding:"14px 20px 12px",background:"#F2F2F7",position:"sticky",top:0,zIndex:1,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:"19px",fontWeight:700,color:"#1C1C1E"}}>{title}</div>
+          <button onClick={onClose} style={{background:"#E5E5EA",border:"none",borderRadius:"50%",width:"30px",height:"30px",cursor:"pointer",fontSize:"16px"}}>✕</button>
+        </div>
+        <div style={{padding:"0 16px 40px",display:"flex",flexDirection:"column",gap:"12px"}}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── FORM HELPERS ──────────────────────────────────────────────
-const Sec = ({children}) => <div style={{background:”#fff”,borderRadius:“14px”,overflow:“hidden”}}>{children}</div>;
+const Sec = ({children}) => <div style={{background:"#fff",borderRadius:"14px",overflow:"hidden"}}>{children}</div>;
 const Item = ({label,children}) => (
-
   <div style={{padding:"12px 16px",borderBottom:"1px solid #F2F2F7",display:"flex",flexDirection:"column",gap:"6px"}}>
     {label && <div style={{fontSize:"12px",color:"#8E8E93",fontWeight:500}}>{label}</div>}
     {children}
@@ -172,798 +204,799 @@ const Row = ({children,onClick,style}) => (
 const SRow = ({children}) => <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 18px",borderBottom:"1px solid #F2F2F7"}}>{children}</div>;
 
 // ── MAIN ──────────────────────────────────────────────────────
-export default function App() {
-const [entries,  setEntries]  = useState(ENTRIES0);
-const [recur,    setRecur]    = useState(RECUR0);
-const [events,   setEvents]   = useState(EVENTS0);
-const [clients,  setClients]  = useState(CLIENTS0);
-const [trips,    setTrips]    = useState(TRIPS0);
-const [incCats,  setIncCats]  = useState(INC_CATS);
-const [expCats,  setExpCats]  = useState(EXP_CATS);
+function App() {
+  const [entries,  setEntries]  = useState(ENTRIES0);
+  const [recur,    setRecur]    = useState(RECUR0);
+  const [events,   setEvents]   = useState(EVENTS0);
+  const [clients,  setClients]  = useState(CLIENTS0);
+  const [trips,    setTrips]    = useState(TRIPS0);
+  const [incCats,  setIncCats]  = useState(INC_CATS);
+  const [expCats,  setExpCats]  = useState(EXP_CATS);
 
-// Load from storage on mount
-const [loaded, setLoaded] = useState(false); // tracks initial load
-useEffect(() => {
-async function loadAll() {
-try {
-const [e,r,ev,cl,tr,ic,ec] = await Promise.all([
-loadFromStorage(“fg9_e”,  ENTRIES0),
-loadFromStorage(“fg9_r”,  RECUR0),
-loadFromStorage(“fg9_ev”, EVENTS0),
-loadFromStorage(“fg9_cl”, CLIENTS0),
-loadFromStorage(“fg9_tr”, TRIPS0),
-loadFromStorage(“fg9_ic”, INC_CATS),
-loadFromStorage(“fg9_ec”, EXP_CATS),
-]);
-setEntries(e); setRecur(r); setEvents(ev);
-setClients(cl); setTrips(tr); setIncCats(ic); setExpCats(ec);
-} catch {}
-setLoaded(true);
-}
-loadAll();
-}, []);
+  // Load from storage on mount
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    async function loadAll() {
+      try {
+        const [e,r,ev,cl,tr,ic,ec] = await Promise.all([
+          loadFromStorage("fg9_e",  ENTRIES0),
+          loadFromStorage("fg9_r",  RECUR0),
+          loadFromStorage("fg9_ev", EVENTS0),
+          loadFromStorage("fg9_cl", CLIENTS0),
+          loadFromStorage("fg9_tr", TRIPS0),
+          loadFromStorage("fg9_ic", INC_CATS),
+          loadFromStorage("fg9_ec", EXP_CATS),
+        ]);
+        setEntries(e); setRecur(r); setEvents(ev);
+        setClients(cl); setTrips(tr); setIncCats(ic); setExpCats(ec);
+      } catch {}
+      setLoaded(true);
+    }
+    loadAll();
+  }, []);
 
-// Save on change (only after initial load)
-useEffect(() => { if(loaded) saveToStorage(“fg9_e”,  entries); }, [entries, loaded]);
-useEffect(() => { if(loaded) saveToStorage(“fg9_r”,  recur);   }, [recur, loaded]);
-useEffect(() => { if(loaded) saveToStorage(“fg9_ev”, events);  }, [events, loaded]);
-useEffect(() => { if(loaded) saveToStorage(“fg9_cl”, clients); }, [clients, loaded]);
-useEffect(() => { if(loaded) saveToStorage(“fg9_tr”, trips);   }, [trips, loaded]);
-useEffect(() => { if(loaded) saveToStorage(“fg9_ic”, incCats); }, [incCats, loaded]);
-useEffect(() => { if(loaded) saveToStorage(“fg9_ec”, expCats); }, [expCats, loaded]);
+  // Save on change (only after initial load)
+  useEffect(() => { if(loaded) saveToStorage("fg9_e",  entries); }, [entries, loaded]);
+  useEffect(() => { if(loaded) saveToStorage("fg9_r",  recur);   }, [recur, loaded]);
+  useEffect(() => { if(loaded) saveToStorage("fg9_ev", events);  }, [events, loaded]);
+  useEffect(() => { if(loaded) saveToStorage("fg9_cl", clients); }, [clients, loaded]);
+  useEffect(() => { if(loaded) saveToStorage("fg9_tr", trips);   }, [trips, loaded]);
+  useEffect(() => { if(loaded) saveToStorage("fg9_ic", incCats); }, [incCats, loaded]);
+  useEffect(() => { if(loaded) saveToStorage("fg9_ec", expCats); }, [expCats, loaded]);
 
-const [tab,     setTab]     = useState(“home”);
-const [fYear,   setFYear]   = useState(2026);
-const [fMonth,  setFMonth]  = useState(“all”);
-const [search,  setSearch]  = useState(””);
-const [showF,   setShowF]   = useState(false);
-const [showEv,  setShowEv]  = useState(false);
-const [showCl,  setShowCl]  = useState(false);
-const [showTr,  setShowTr]  = useState(false);
-const [showRec, setShowRec] = useState(false);
-const [showUp,  setShowUp]  = useState(false);
-const [editId,  setEditId]  = useState(null);
-const [form,    setForm]    = useState(EF);
-const [evForm,  setEvForm]  = useState(EEV);
-const [clForm,  setClForm]  = useState(ECL);
-const [trForm,  setTrForm]  = useState(ETR);
-const [rForm,   setRForm]   = useState(ER);
-const [newTodo, setNewTodo] = useState(””);
-const [aiMsgs,  setAiMsgs]  = useState([{role:“ai”,content:“Hallo! Ich bin dein KI-Finanzassistent.\nFrag mich z.B.:\n- Groesste Ausgaben?\n- Was bleibt diesen Monat?\n- Top Kunden?”}]);
-const [aiInput, setAiInput] = useState(””);
-const [aiThink, setAiThink] = useState(false);
-const [upRes,   setUpRes]   = useState(null);
-const [upLoad,  setUpLoad]  = useState(false);
-const [calY,    setCalY]    = useState(TODAY.getFullYear());
-const [calM,    setCalM]    = useState(TODAY.getMonth());
-const [selDay,  setSelDay]  = useState(null);
-const chatEnd = useRef(null);
-useEffect(() => { chatEnd.current?.scrollIntoView({behavior:“smooth”}); }, [aiMsgs]);
+  const [tab,     setTab]     = useState("home");
+  const [fYear,   setFYear]   = useState(2026);
+  const [fMonth,  setFMonth]  = useState("all");
+  const [search,  setSearch]  = useState("");
+  const [showF,   setShowF]   = useState(false);
+  const [showEv,  setShowEv]  = useState(false);
+  const [showCl,  setShowCl]  = useState(false);
+  const [showTr,  setShowTr]  = useState(false);
+  const [showRec, setShowRec] = useState(false);
+  const [showUp,  setShowUp]  = useState(false);
+  const [editId,  setEditId]  = useState(null);
+  const [form,    setForm]    = useState(EF);
+  const [evForm,  setEvForm]  = useState(EEV);
+  const [clForm,  setClForm]  = useState(ECL);
+  const [trForm,  setTrForm]  = useState(ETR);
+  const [rForm,   setRForm]   = useState(ER);
+  const [newTodo, setNewTodo] = useState("");
+  const [aiMsgs,  setAiMsgs]  = useState([{role:"ai",content:"Hallo! Ich bin dein KI-Finanzassistent.\nFrag mich z.B.:\n- Groesste Ausgaben?\n- Was bleibt diesen Monat?\n- Top Kunden?"}]);
+  const [aiInput, setAiInput] = useState("");
+  const [aiThink, setAiThink] = useState(false);
+  const [upRes,   setUpRes]   = useState(null);
+  const [upLoad,  setUpLoad]  = useState(false);
+  const [calY,    setCalY]    = useState(TODAY.getFullYear());
+  const [calM,    setCalM]    = useState(TODAY.getMonth());
+  const [selDay,  setSelDay]  = useState(null);
+  const chatEnd = useRef(null);
+  useEffect(() => { chatEnd.current?.scrollIntoView({behavior:"smooth"}); }, [aiMsgs]);
 
-// COMPUTED
-const yearEnt  = useMemo(() => entries.filter(e => new Date(e.date).getFullYear() === fYear), [entries, fYear]);
-const filtered = useMemo(() => {
-let list = yearEnt;
-if (fMonth !== “all”) list = list.filter(e => new Date(e.date).getMonth() === parseInt(fMonth));
-if (search.trim()) { const q = search.toLowerCase(); list = list.filter(e => [e.desc,e.client,e.inv,e.cat].some(f => (f||””).toLowerCase().includes(q))); }
-return […list].sort((a,b) => new Date(b.date) - new Date(a.date));
-}, [yearEnt, fMonth, search]);
+  // COMPUTED
+  const yearEnt  = useMemo(() => entries.filter(e => new Date(e.date).getFullYear() === fYear), [entries, fYear]);
+  const filtered = useMemo(() => {
+    let list = yearEnt;
+    if (fMonth !== "all") list = list.filter(e => new Date(e.date).getMonth() === parseInt(fMonth));
+    if (search.trim()) { const q = search.toLowerCase(); list = list.filter(e => [e.desc,e.client,e.inv,e.cat].some(f => (f||"").toLowerCase().includes(q))); }
+    return [...list].sort((a,b) => new Date(b.date) - new Date(a.date));
+  }, [yearEnt, fMonth, search]);
 
-const yInc     = useMemo(() => sum(yearEnt.filter(e=>e.type===“income”), e=>e.amt), [yearEnt]);
-const yExp     = useMemo(() => sum(yearEnt.filter(e=>e.type===“expense”), e=>e.amt), [yearEnt]);
-const taxBase  = useMemo(() => sum(yearEnt.filter(e=>e.type===“income”&&e.tax), e=>e.amt), [yearEnt]);
-const openAmt  = useMemo(() => sum(yearEnt.filter(e=>e.type===“income”&&e.status===“open”), e=>e.amt), [yearEnt]);
-const overdueA = useMemo(() => sum(yearEnt.filter(e=>e.type===“income”&&e.status===“overdue”), e=>e.amt), [yearEnt]);
-const totalKm  = useMemo(() => sum(trips, t=>t.roundTrip?t.km*2:t.km), [trips]);
-const totalCost= useMemo(() => sum(trips, t=>(t.roundTrip?t.km*2:t.km)*t.cpk), [trips]);
-const totInc   = useMemo(() => sum(filtered.filter(e=>e.type===“income”), e=>e.amt), [filtered]);
-const totExp   = useMemo(() => sum(filtered.filter(e=>e.type===“expense”), e=>e.amt), [filtered]);
+  const yInc     = useMemo(() => sum(yearEnt.filter(e=>e.type==="income"), e=>e.amt), [yearEnt]);
+  const yExp     = useMemo(() => sum(yearEnt.filter(e=>e.type==="expense"), e=>e.amt), [yearEnt]);
+  const taxBase  = useMemo(() => sum(yearEnt.filter(e=>e.type==="income"&&e.tax), e=>e.amt), [yearEnt]);
+  const openAmt  = useMemo(() => sum(yearEnt.filter(e=>e.type==="income"&&e.status==="open"), e=>e.amt), [yearEnt]);
+  const overdueA = useMemo(() => sum(yearEnt.filter(e=>e.type==="income"&&e.status==="overdue"), e=>e.amt), [yearEnt]);
+  const totalKm  = useMemo(() => sum(trips, t=>t.roundTrip?t.km*2:t.km), [trips]);
+  const totalCost= useMemo(() => sum(trips, t=>(t.roundTrip?t.km*2:t.km)*t.cpk), [trips]);
+  const totInc   = useMemo(() => sum(filtered.filter(e=>e.type==="income"), e=>e.amt), [filtered]);
+  const totExp   = useMemo(() => sum(filtered.filter(e=>e.type==="expense"), e=>e.amt), [filtered]);
 
-const curM = TODAY.getMonth();
-const curMInc = useMemo(() => {
-const me = yearEnt.filter(e => new Date(e.date).getMonth() === curM);
-const evI = sum(events.filter(ev => { const d=new Date(ev.date); return d.getMonth()===curM&&d.getFullYear()===fYear&&ev.status!==“cancelled”; }), ev=>ev.income||0);
-return sum(me.filter(e=>e.type===“income”), e=>e.amt) + evI;
-}, [yearEnt, events, curM, fYear]);
-const curMExp = useMemo(() => {
-const me = yearEnt.filter(e => new Date(e.date).getMonth() === curM);
-const evC = sum(events.filter(ev => { const d=new Date(ev.date); return d.getMonth()===curM&&d.getFullYear()===fYear&&ev.status!==“cancelled”; }), ev=>ev.costs||0);
-return sum(me.filter(e=>e.type===“expense”), e=>e.amt) + evC;
-}, [yearEnt, events, curM, fYear]);
+  const curM = TODAY.getMonth();
+  const curMInc = useMemo(() => {
+    const me = yearEnt.filter(e => new Date(e.date).getMonth() === curM);
+    const evI = sum(events.filter(ev => { const d=new Date(ev.date); return d.getMonth()===curM&&d.getFullYear()===fYear&&ev.status!=="cancelled"; }), ev=>ev.income||0);
+    return sum(me.filter(e=>e.type==="income"), e=>e.amt) + evI;
+  }, [yearEnt, events, curM, fYear]);
+  const curMExp = useMemo(() => {
+    const me = yearEnt.filter(e => new Date(e.date).getMonth() === curM);
+    const evC = sum(events.filter(ev => { const d=new Date(ev.date); return d.getMonth()===curM&&d.getFullYear()===fYear&&ev.status!=="cancelled"; }), ev=>ev.costs||0);
+    return sum(me.filter(e=>e.type==="expense"), e=>e.amt) + evC;
+  }, [yearEnt, events, curM, fYear]);
 
-const chartData = useMemo(() => MONTHS_S.map((l,i) => {
-const me = yearEnt.filter(e => new Date(e.date).getMonth() === i);
-return {l, ein:sum(me.filter(e=>e.type===“income”),e=>e.amt), aus:sum(me.filter(e=>e.type===“expense”),e=>e.amt)};
-}), [yearEnt]);
+  const chartData = useMemo(() => MONTHS_S.map((l,i) => {
+    const me = yearEnt.filter(e => new Date(e.date).getMonth() === i);
+    return {l, ein:sum(me.filter(e=>e.type==="income"),e=>e.amt), aus:sum(me.filter(e=>e.type==="expense"),e=>e.amt)};
+  }), [yearEnt]);
 
-const incByCat = useMemo(() => { const m={}; filtered.filter(e=>e.type===“income”).forEach(e=>{m[e.cat]=(m[e.cat]||0)+e.amt;}); return Object.entries(m).map(([n,v])=>({n,v})).sort((a,b)=>b.v-a.v); }, [filtered]);
-const expByCat = useMemo(() => { const m={}; filtered.filter(e=>e.type===“expense”).forEach(e=>{m[e.cat]=(m[e.cat]||0)+e.amt;}); return Object.entries(m).map(([n,v])=>({n,v})).sort((a,b)=>b.v-a.v); }, [filtered]);
-const clientStats = useMemo(() => clients.map(cl => { const ces=entries.filter(e=>e.client===cl.name&&e.type===“income”); return {…cl,revenue:sum(ces,e=>e.amt),bookings:ces.length}; }).sort((a,b)=>b.revenue-a.revenue), [clients,entries]);
-const upcoming = useMemo(() => events.filter(ev=>new Date(ev.date)>=new Date(TODAY.toDateString())).sort((a,b)=>new Date(a.date)-new Date(b.date)), [events]);
+  const incByCat = useMemo(() => { const m={}; filtered.filter(e=>e.type==="income").forEach(e=>{m[e.cat]=(m[e.cat]||0)+e.amt;}); return Object.entries(m).map(([n,v])=>({n,v})).sort((a,b)=>b.v-a.v); }, [filtered]);
+  const expByCat = useMemo(() => { const m={}; filtered.filter(e=>e.type==="expense").forEach(e=>{m[e.cat]=(m[e.cat]||0)+e.amt;}); return Object.entries(m).map(([n,v])=>({n,v})).sort((a,b)=>b.v-a.v); }, [filtered]);
+  const clientStats = useMemo(() => clients.map(cl => { const ces=entries.filter(e=>e.client===cl.name&&e.type==="income"); return {...cl,revenue:sum(ces,e=>e.amt),bookings:ces.length}; }).sort((a,b)=>b.revenue-a.revenue), [clients,entries]);
+  const upcoming = useMemo(() => events.filter(ev=>new Date(ev.date)>=new Date(TODAY.toDateString())).sort((a,b)=>new Date(a.date)-new Date(b.date)), [events]);
 
-const calEvMap = useMemo(() => {
-const m = {};
-events.forEach(ev => { const d=new Date(ev.date); if(d.getFullYear()===calY&&d.getMonth()===calM){const k=d.getDate();if(!m[k])m[k]=[];m[k].push(ev);} });
-return m;
-}, [events,calY,calM]);
-const daysInM  = new Date(calY,calM+1,0).getDate();
-const firstDay = (new Date(calY,calM,1).getDay()+6)%7;
-const selDateS = selDay ? (calY+”-”+String(calM+1).padStart(2,“0”)+”-”+String(selDay).padStart(2,“0”)) : null;
-const selEvs   = selDateS ? events.filter(ev=>ev.date===selDateS) : [];
+  const calEvMap = useMemo(() => {
+    const m = {};
+    events.forEach(ev => { const d=new Date(ev.date); if(d.getFullYear()===calY&&d.getMonth()===calM){const k=d.getDate();if(!m[k])m[k]=[];m[k].push(ev);} });
+    return m;
+  }, [events,calY,calM]);
+  const daysInM  = new Date(calY,calM+1,0).getDate();
+  const firstDay = (new Date(calY,calM,1).getDay()+6)%7;
+  const selDateS = selDay ? (calY+"-"+String(calM+1).padStart(2,"0")+"-"+String(selDay).padStart(2,"0")) : null;
+  const selEvs   = selDateS ? events.filter(ev=>ev.date===selDateS) : [];
 
-// ACTIONS
-function openAdd() { setEditId(null); setForm({…EF,cat:incCats[0]}); setShowF(true); }
-function openEdit(e) { setEditId(e.id); setForm({…e,amt:String(e.amt),customCat:””}); setShowF(true); }
-function saveEntry() {
-if (!form.desc||!form.amt||isNaN(parseFloat(form.amt))) return;
-const cat = form.cat===”**custom**” ? form.customCat.trim() : form.cat;
-if (!cat) return;
-if (form.cat===”**custom**”&&cat) { if(form.type===“income”) setIncCats(p=>p.includes(cat)?p:[…p,cat]); else setExpCats(p=>p.includes(cat)?p:[…p,cat]); }
-const entry = {…form, cat, amt:parseFloat(form.amt)};
-if (editId) setEntries(p=>p.map(e=>e.id===editId?{…entry,id:editId}:e));
-else setEntries(p=>[…p,{…entry,id:Date.now()}]);
-setShowF(false);
-}
-function delEntry(id) { if(confirm(“Loeschen?”)) setEntries(p=>p.filter(e=>e.id!==id)); }
+  // ACTIONS
+  function openAdd() { setEditId(null); setForm({...EF,cat:incCats[0]}); setShowF(true); }
+  function openEdit(e) { setEditId(e.id); setForm({...e,amt:String(e.amt),customCat:""}); setShowF(true); }
+  function saveEntry() {
+    if (!form.desc||!form.amt||isNaN(parseFloat(form.amt))) return;
+    const cat = form.cat==="__custom__" ? form.customCat.trim() : form.cat;
+    if (!cat) return;
+    if (form.cat==="__custom__"&&cat) { if(form.type==="income") setIncCats(p=>p.includes(cat)?p:[...p,cat]); else setExpCats(p=>p.includes(cat)?p:[...p,cat]); }
+    const entry = {...form, cat, amt:parseFloat(form.amt)};
+    if (editId) setEntries(p=>p.map(e=>e.id===editId?{...entry,id:editId}:e));
+    else setEntries(p=>[...p,{...entry,id:Date.now()}]);
+    setShowF(false);
+  }
+  function delEntry(id) { if(confirm("Loeschen?")) setEntries(p=>p.filter(e=>e.id!==id)); }
 
-function bookRecur(r) {
-setEntries(p=>[…p,{id:Date.now(),date:r.next,type:“expense”,cat:r.cat,desc:r.desc,client:””,amt:r.amt,tax:true,status:“paid”,inv:””,note:””}]);
-const n=new Date(r.next);
-if(r.freq===“monthly”) n.setMonth(n.getMonth()+1);
-else if(r.freq===“quarterly”) n.setMonth(n.getMonth()+3);
-else n.setFullYear(n.getFullYear()+1);
-setRecur(p=>p.map(x=>x.id===r.id?{…x,next:n.toISOString().slice(0,10)}:x));
-}
+  function bookRecur(r) {
+    setEntries(p=>[...p,{id:Date.now(),date:r.next,type:"expense",cat:r.cat,desc:r.desc,client:"",amt:r.amt,tax:true,status:"paid",inv:"",note:""}]);
+    const n=new Date(r.next);
+    if(r.freq==="monthly") n.setMonth(n.getMonth()+1);
+    else if(r.freq==="quarterly") n.setMonth(n.getMonth()+3);
+    else n.setFullYear(n.getFullYear()+1);
+    setRecur(p=>p.map(x=>x.id===r.id?{...x,next:n.toISOString().slice(0,10)}:x));
+  }
 
-function openNewEv(d) { setEditId(null); setEvForm({…EEV,date:d||TODAY_S,end:d||TODAY_S}); setShowEv(true); }
-function openEditEv(ev) { setEditId(ev.id); setEvForm({…ev,income:String(ev.income||””),costs:String(ev.costs||””)}); setShowEv(true); }
-function saveEv() {
-if (!evForm.title) return;
-const ev = {…evForm, income:parseFloat(evForm.income)||0, costs:parseFloat(evForm.costs)||0};
-if (editId) setEvents(p=>p.map(x=>x.id===editId?{…ev,id:editId}:x));
-else setEvents(p=>[…p,{…ev,id:Date.now()}]);
-setShowEv(false);
-}
-function delEv(id) { if(confirm(“Loeschen?”)) { setEvents(p=>p.filter(x=>x.id!==id)); setShowEv(false); } }
+  function openNewEv(d) { setEditId(null); setEvForm({...EEV,date:d||TODAY_S,end:d||TODAY_S}); setShowEv(true); }
+  function openEditEv(ev) { setEditId(ev.id); setEvForm({...ev,income:String(ev.income||""),costs:String(ev.costs||"")}); setShowEv(true); }
+  function saveEv() {
+    if (!evForm.title) return;
+    const ev = {...evForm, income:parseFloat(evForm.income)||0, costs:parseFloat(evForm.costs)||0};
+    if (editId) setEvents(p=>p.map(x=>x.id===editId?{...ev,id:editId}:x));
+    else setEvents(p=>[...p,{...ev,id:Date.now()}]);
+    setShowEv(false);
+  }
+  function delEv(id) { if(confirm("Loeschen?")) { setEvents(p=>p.filter(x=>x.id!==id)); setShowEv(false); } }
 
-function saveCl() {
-if (!clForm.name.trim()) return;
-if (editId) setClients(p=>p.map(x=>x.id===editId?{…x,…clForm}:x));
-else setClients(p=>[…p,{…clForm,id:Date.now()}]);
-setShowCl(false);
-}
-function delCl(id) { if(confirm(“Loeschen?”)) { setClients(p=>p.filter(x=>x.id!==id)); setShowCl(false); } }
+  function saveCl() {
+    if (!clForm.name.trim()) return;
+    if (editId) setClients(p=>p.map(x=>x.id===editId?{...x,...clForm}:x));
+    else setClients(p=>[...p,{...clForm,id:Date.now()}]);
+    setShowCl(false);
+  }
+  function delCl(id) { if(confirm("Loeschen?")) { setClients(p=>p.filter(x=>x.id!==id)); setShowCl(false); } }
 
-function saveTr() {
-if (!trForm.from||!trForm.to||!trForm.km) return;
-const t = {…trForm,km:parseFloat(trForm.km)};
-if (editId) setTrips(p=>p.map(x=>x.id===editId?{…t,id:editId}:x));
-else setTrips(p=>[…p,{…t,id:Date.now()}]);
-setShowTr(false);
-}
-function delTr(id) { if(confirm(“Loeschen?”)) { setTrips(p=>p.filter(x=>x.id!==id)); setShowTr(false); } }
+  function saveTr() {
+    if (!trForm.from||!trForm.to||!trForm.km) return;
+    const t = {...trForm,km:parseFloat(trForm.km)};
+    if (editId) setTrips(p=>p.map(x=>x.id===editId?{...t,id:editId}:x));
+    else setTrips(p=>[...p,{...t,id:Date.now()}]);
+    setShowTr(false);
+  }
+  function delTr(id) { if(confirm("Loeschen?")) { setTrips(p=>p.filter(x=>x.id!==id)); setShowTr(false); } }
 
-function exportCSV() {
-const h=“Datum;Typ;Kategorie;Beschreibung;Kunde;Betrag;Rechnungsnr;Status”;
-const rows=yearEnt.map(e=>[e.date,e.type===“income”?“Einnahme”:“Ausgabe”,e.cat,e.desc,e.client||””,e.amt.toFixed(2).replace(”.”,”,”),e.inv||””,PAY_S[e.status]?.l||””].join(”;”));
-const b=new Blob([”\uFEFF”+[h,…rows].join(”\n”)],{type:“text/csv;charset=utf-8;”});
-const a=document.createElement(“a”);a.href=URL.createObjectURL(b);a.download=“finanzen_”+fYear+”.csv”;a.click();
-}
-function exportBak() {
-const b=new Blob([JSON.stringify({entries,recur,events,clients,trips,incCats,expCats})],{type:“application/json”});
-const a=document.createElement(“a”);a.href=URL.createObjectURL(b);a.download=“backup.json”;a.click();
-}
-function importBak(e) {
-const f=e.target.files[0]; if(!f) return;
-const r=new FileReader();
-r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.entries)setEntries(d.entries);if(d.recur)setRecur(d.recur);if(d.events)setEvents(d.events);if(d.clients)setClients(d.clients);if(d.trips)setTrips(d.trips);if(d.incCats)setIncCats(d.incCats);if(d.expCats)setExpCats(d.expCats);alert(“Backup geladen!”);}catch{alert(“Fehler.”);}};
-r.readAsText(f);
-}
+  function exportCSV() {
+    const h="Datum;Typ;Kategorie;Beschreibung;Kunde;Betrag;Rechnungsnr;Status";
+    const rows=yearEnt.map(e=>[e.date,e.type==="income"?"Einnahme":"Ausgabe",e.cat,e.desc,e.client||"",e.amt.toFixed(2).replace(".",","),e.inv||"",PAY_S[e.status]?.l||""].join(";"));
+    const b=new Blob(["\uFEFF"+[h,...rows].join("\n")],{type:"text/csv;charset=utf-8;"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="finanzen_"+fYear+".csv";a.click();
+  }
+  function exportBak() {
+    const b=new Blob([JSON.stringify({entries,recur,events,clients,trips,incCats,expCats})],{type:"application/json"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="backup.json";a.click();
+  }
+  function importBak(e) {
+    const f=e.target.files[0]; if(!f) return;
+    const r=new FileReader();
+    r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.entries)setEntries(d.entries);if(d.recur)setRecur(d.recur);if(d.events)setEvents(d.events);if(d.clients)setClients(d.clients);if(d.trips)setTrips(d.trips);if(d.incCats)setIncCats(d.incCats);if(d.expCats)setExpCats(d.expCats);alert("Backup geladen!");}catch{alert("Fehler.");}};
+    r.readAsText(f);
+  }
 
-async function sendAI() {
-if (!aiInput.trim()||aiThink) return;
-const msg=aiInput.trim();
-setAiMsgs(p=>[…p,{role:“user”,content:msg}]);
-setAiInput(””); setAiThink(true);
-const sys=“Du bist Finanzassistent fuer ein Kleingewerbe. Antworte auf Deutsch, praezise, max 150 Woerter.\n\nDATEN “+fYear+”:\nEinnahmen: “+fmt(yInc)+” | Ausgaben: “+fmt(yExp)+” | Gewinn: “+fmt(yInc-yExp)+”\nEin. nach Quelle: “+(incByCat.map(c=>c.n+”: “+fmt(c.v)).join(”, “)||“keine”)+”\nAus. nach Kat.: “+(expByCat.map(c=>c.n+”: “+fmt(c.v)).join(”, “)||“keine”)+”\nFahrten: “+totalKm+“km / “+fmt(totalCost)+”\nTop-Kunden: “+(clientStats.slice(0,3).map(c=>c.name+”: “+fmt(c.revenue)).join(”, “)||“keine”)+”\nAkt.Monat: Ein “+fmt(curMInc)+” / Aus “+fmt(curMExp);
-try {
-const resp=await fetch(“https://api.anthropic.com/v1/messages”,{method:“POST”,headers:{“Content-Type”:“application/json”},body:JSON.stringify({model:“claude-sonnet-4-20250514”,max_tokens:400,system:sys,messages:[{role:“user”,content:msg}]})});
-const data=await resp.json();
-const text=(data.content||[]).map(c=>c.text||””).join(””)||“Fehler.”;
-setAiMsgs(p=>[…p,{role:“ai”,content:text}]);
-} catch { setAiMsgs(p=>[…p,{role:“ai”,content:“Verbindungsfehler.”}]); }
-setAiThink(false);
-}
+  async function sendAI() {
+    if (!aiInput.trim()||aiThink) return;
+    const msg=aiInput.trim();
+    setAiMsgs(p=>[...p,{role:"user",content:msg}]);
+    setAiInput(""); setAiThink(true);
+    const sys="Du bist Finanzassistent fuer ein Kleingewerbe. Antworte auf Deutsch, praezise, max 150 Woerter.\n\nDATEN "+fYear+":\nEinnahmen: "+fmt(yInc)+" | Ausgaben: "+fmt(yExp)+" | Gewinn: "+fmt(yInc-yExp)+"\nEin. nach Quelle: "+(incByCat.map(c=>c.n+": "+fmt(c.v)).join(", ")||"keine")+"\nAus. nach Kat.: "+(expByCat.map(c=>c.n+": "+fmt(c.v)).join(", ")||"keine")+"\nFahrten: "+totalKm+"km / "+fmt(totalCost)+"\nTop-Kunden: "+(clientStats.slice(0,3).map(c=>c.name+": "+fmt(c.revenue)).join(", ")||"keine")+"\nAkt.Monat: Ein "+fmt(curMInc)+" / Aus "+fmt(curMExp);
+    try {
+      const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:400,system:sys,messages:[{role:"user",content:msg}]})});
+      const data=await resp.json();
+      const text=(data.content||[]).map(c=>c.text||"").join("")||"Fehler.";
+      setAiMsgs(p=>[...p,{role:"ai",content:text}]);
+    } catch { setAiMsgs(p=>[...p,{role:"ai",content:"Verbindungsfehler."}]); }
+    setAiThink(false);
+  }
 
-async function analyzeFile(file) {
-if (!file.type.startsWith(“image/”)&&file.type!==“application/pdf”) { setUpRes({error:“Nur JPG/PNG/PDF”}); return; }
-setUpLoad(true); setUpRes(null);
-const b64 = await new Promise(res=>{const r=new FileReader();r.onload=()=>res(r.result.split(”,”)[1]);r.readAsDataURL(file);});
-const cItem = file.type.startsWith(“image/”) ? {type:“image”,source:{type:“base64”,media_type:file.type,data:b64}} : {type:“document”,source:{type:“base64”,media_type:“application/pdf”,data:b64}};
-const prompt = “Analysiere dieses Dokument. Antworte nur mit reinem JSON ohne Backticks:\n{"date":"YYYY-MM-DD","description":"max 60 Zeichen","vendor":"Aussteller","clientName":"","amount":0,"suggestedCategory":"","invoiceNumber":"","type":"expense","confidence":0}\nBekannte Kunden: “+clients.map(c=>c.name).join(”, “)+”\nKategorien: “+[…INC_CATS,…EXP_CATS].join(”, “)+”\nHeute: “+TODAY_S;
-try {
-const resp=await fetch(“https://api.anthropic.com/v1/messages”,{method:“POST”,headers:{“Content-Type”:“application/json”},body:JSON.stringify({model:“claude-sonnet-4-20250514”,max_tokens:400,messages:[{role:“user”,content:[cItem,{type:“text”,text:prompt}]}]})});
-const data=await resp.json();
-let text=(data.content||[]).map(c=>c.text||””).join(””).trim();
-const m=text.match(/{[\s\S]*}/); if(m) text=m[0];
-setUpRes(JSON.parse(text));
-} catch { setUpRes({error:“Analyse fehlgeschlagen.”}); }
-setUpLoad(false);
-}
+  async function analyzeFile(file) {
+    if (!file.type.startsWith("image/")&&file.type!=="application/pdf") { setUpRes({error:"Nur JPG/PNG/PDF"}); return; }
+    setUpLoad(true); setUpRes(null);
+    const b64 = await new Promise(res=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.readAsDataURL(file);});
+    const cItem = file.type.startsWith("image/") ? {type:"image",source:{type:"base64",media_type:file.type,data:b64}} : {type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}};
+    const prompt = "Analysiere dieses Dokument. Antworte nur mit reinem JSON ohne Backticks:\n{\"date\":\"YYYY-MM-DD\",\"description\":\"max 60 Zeichen\",\"vendor\":\"Aussteller\",\"clientName\":\"\",\"amount\":0,\"suggestedCategory\":\"\",\"invoiceNumber\":\"\",\"type\":\"expense\",\"confidence\":0}\nBekannte Kunden: "+clients.map(c=>c.name).join(", ")+"\nKategorien: "+[...INC_CATS,...EXP_CATS].join(", ")+"\nHeute: "+TODAY_S;
+    try {
+      const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:400,messages:[{role:"user",content:[cItem,{type:"text",text:prompt}]}]})});
+      const data=await resp.json();
+      let text=(data.content||[]).map(c=>c.text||"").join("").trim();
+      const m=text.match(/\{[\s\S]*\}/); if(m) text=m[0];
+      setUpRes(JSON.parse(text));
+    } catch { setUpRes({error:"Analyse fehlgeschlagen."}); }
+    setUpLoad(false);
+  }
 
-function applyUpload() {
-if (!upRes||upRes.error) return;
-const vn = upRes.type===“income”?(upRes.clientName||””):(upRes.vendor||””);
-const mc = clients.find(c=>{const cn=c.name.toLowerCase(),vl=vn.toLowerCase();return cn===vl||cn.includes(vl)||vl.includes(cn);});
-setForm({…EF,date:upRes.date||TODAY_S,type:upRes.type||“expense”,cat:upRes.suggestedCategory||(upRes.type===“income”?incCats[0]:expCats[0]),desc:upRes.description||””,client:mc?mc.name:vn,amt:String(upRes.amount||””),inv:upRes.invoiceNumber||””,tax:true,status:“paid”,note:””,customCat:””});
-setEditId(null); setShowUp(false); setShowF(true);
-}
+  function applyUpload() {
+    if (!upRes||upRes.error) return;
+    const vn = upRes.type==="income"?(upRes.clientName||""):(upRes.vendor||"");
+    const mc = clients.find(c=>{const cn=c.name.toLowerCase(),vl=vn.toLowerCase();return cn===vl||cn.includes(vl)||vl.includes(cn);});
+    setForm({...EF,date:upRes.date||TODAY_S,type:upRes.type||"expense",cat:upRes.suggestedCategory||(upRes.type==="income"?incCats[0]:expCats[0]),desc:upRes.description||"",client:mc?mc.name:vn,amt:String(upRes.amount||""),inv:upRes.invoiceNumber||"",tax:true,status:"paid",note:"",customCat:""});
+    setEditId(null); setShowUp(false); setShowF(true);
+  }
 
-const curCats = form.type===“income” ? incCats : expCats;
-const TABS = [{id:“home”,l:“Start”},{id:“entries”,l:“Buchungen”},{id:“cal”,l:“Kalender”},{id:“fore”,l:“Prognose”},{id:“clients”,l:“Kunden”},{id:“miles”,l:“Fahrten”},{id:“tax”,l:“Steuer”},{id:“ai”,l:“KI”}];
+  const curCats = form.type==="income" ? incCats : expCats;
+  const TABS = [{id:"home",l:"Start"},{id:"entries",l:"Buchungen"},{id:"cal",l:"Kalender"},{id:"fore",l:"Prognose"},{id:"clients",l:"Kunden"},{id:"miles",l:"Fahrten"},{id:"tax",l:"Steuer"},{id:"ai",l:"KI"}];
 
-return (
-<div style={{background:”#F2F2F7”,minHeight:“100vh”,fontFamily:”-apple-system,BlinkMacSystemFont,‘Helvetica Neue’,sans-serif”,paddingBottom:“100px”,WebkitFontSmoothing:“antialiased”}}>
+  return (
+    <div style={{background:"#F2F2F7",minHeight:"100vh",fontFamily:"-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif",paddingBottom:"100px",WebkitFontSmoothing:"antialiased"}}>
 
-```
-  {/* HEADER */}
-  <div style={{background:"rgba(242,242,247,.95)",backdropFilter:"blur(20px)",position:"sticky",top:0,zIndex:100,borderBottom:"1px solid rgba(0,0,0,.06)"}}>
-    <div style={{maxWidth:"720px",margin:"0 auto",padding:"12px 16px 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-      <div>
-        <div style={{fontSize:"22px",fontWeight:700,color:"#1C1C1E"}}>Finanzen</div>
-        <div style={{fontSize:"12px",color:"#8E8E93"}}>Kleingewerbe {fYear}</div>
-      </div>
-      <div style={{display:"flex",gap:"5px",flexWrap:"wrap",justifyContent:"flex-end"}}>
-        <Sel value={String(fYear)} options={["2023","2024","2025","2026","2027"].map(y=>({v:y,l:y}))} onChange={e=>setFYear(parseInt(e.target.value))} style={{width:"78px",fontSize:"13px",padding:"7px 8px"}}/>
-        <BtnS onClick={()=>setShowUp(true)} style={{fontSize:"12px",padding:"7px 10px"}}>Beleg</BtnS>
-        <BtnS onClick={exportCSV} style={{fontSize:"12px",padding:"7px 10px"}}>CSV</BtnS>
-        <BtnS onClick={exportBak} style={{fontSize:"12px",padding:"7px 10px"}}>Bak</BtnS>
-        <label style={{background:"#F2F2F7",border:"none",borderRadius:"10px",padding:"9px 10px",color:"#007AFF",fontSize:"12px",fontWeight:500,cursor:"pointer"}}>Imp<input type="file" accept=".json" onChange={importBak} style={{display:"none"}}/></label>
-      </div>
-    </div>
-    <div style={{maxWidth:"720px",margin:"0 auto",padding:"6px 8px 0",display:"flex",overflowX:"auto",gap:"1px"}}>
-      {TABS.map(t => (
-        <button key={t.id} onClick={()=>setTab(t.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",padding:"6px 3px",background:"none",border:"none",cursor:"pointer",color:tab===t.id?"#007AFF":"#8E8E93",fontSize:"9px",fontWeight:600,minWidth:"44px",borderRadius:"10px",textTransform:"uppercase",letterSpacing:".03em"}}>
-          {t.l}
-        </button>
-      ))}
-    </div>
-  </div>
-
-  <div style={{maxWidth:"720px",margin:"0 auto",padding:"0 14px"}}>
-
-    {/* HOME */}
-    {tab==="home" && <>
-      {(overdueA>0||openAmt>0) && <div style={{display:"flex",flexDirection:"column",gap:"8px",marginTop:"14px"}}>
-        {overdueA>0 && <div onClick={()=>setTab("entries")} style={{background:"#FFF1F0",borderRadius:"14px",padding:"12px 16px",cursor:"pointer"}}><b style={{color:"#FF3B30"}}>Ueberfaellig: {fmt(overdueA)}</b></div>}
-        {openAmt>0  && <div onClick={()=>setTab("entries")} style={{background:"#FFFBF0",borderRadius:"14px",padding:"12px 16px",cursor:"pointer"}}><b style={{color:"#FF9500"}}>Offen: {fmt(openAmt)}</b></div>}
-      </div>}
-
-      <div style={{marginTop:"14px",background:"linear-gradient(135deg,#007AFF,#5AC8FA)",borderRadius:"20px",padding:"20px"}}>
-        <div style={{fontSize:"13px",color:"rgba(255,255,255,.75)",marginBottom:"4px"}}>{MONTHS[curM]} {fYear}</div>
-        <div style={{fontSize:"26px",fontWeight:700,color:"#fff",marginBottom:"10px"}}>{fmt(curMInc)}</div>
-        <div style={{display:"flex",gap:"20px"}}>
-          <div><div style={{fontSize:"11px",color:"rgba(255,255,255,.65)"}}>Ausgaben</div><div style={{fontSize:"14px",fontWeight:600,color:"rgba(255,255,255,.9)"}}>{fmt(curMExp)}</div></div>
-          <div><div style={{fontSize:"11px",color:"rgba(255,255,255,.65)"}}>Verbleibt</div><div style={{fontSize:"14px",fontWeight:600,color:"rgba(255,255,255,.9)"}}>{fmt(curMInc-curMExp)}</div></div>
-        </div>
-      </div>
-
-      <div style={{display:"flex",gap:"8px",marginTop:"10px"}}>
-        {[{l:"Einnahmen",v:yInc,c:"#34C759"},{l:"Ausgaben",v:yExp,c:"#FF3B30"},{l:"Gewinn",v:yInc-yExp,c:yInc-yExp>=0?"#007AFF":"#FF3B30"}].map(k=>(
-          <div key={k.l} style={{flex:1,background:"#fff",borderRadius:"16px",padding:"14px",minWidth:0}}>
-            <div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>{k.l}</div>
-            <div style={{fontSize:"16px",fontWeight:700,color:k.c,letterSpacing:"-.3px",wordBreak:"break-all"}}>{fmt(k.v)}</div>
+      {/* HEADER */}
+      <div style={{background:"rgba(242,242,247,.95)",backdropFilter:"blur(20px)",position:"sticky",top:0,zIndex:100,borderBottom:"1px solid rgba(0,0,0,.06)"}}>
+        <div style={{maxWidth:"720px",margin:"0 auto",padding:"12px 16px 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:"22px",fontWeight:700,color:"#1C1C1E"}}>Finanzen</div>
+            <div style={{fontSize:"12px",color:"#8E8E93"}}>Kleingewerbe {fYear}</div>
           </div>
-        ))}
-      </div>
-
-      <div style={{background:"#fff",borderRadius:"16px",padding:"16px",marginTop:"10px"}}>
-        <div style={{fontSize:"14px",fontWeight:600,color:"#1C1C1E",marginBottom:"12px"}}>Monatsverlauf {fYear}</div>
-        <BarChart data={chartData}/>
-      </div>
-
-      {upcoming.length>0 && <>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 0 8px"}}>
-          <div style={{fontSize:"16px",fontWeight:700,color:"#1C1C1E"}}>Naechste Termine</div>
-          <BtnS onClick={()=>setTab("cal")} style={{fontSize:"13px"}}>Kalender</BtnS>
+          <div style={{display:"flex",gap:"5px",flexWrap:"wrap",justifyContent:"flex-end"}}>
+            <Sel value={String(fYear)} options={["2023","2024","2025","2026","2027"].map(y=>({v:y,l:y}))} onChange={e=>setFYear(parseInt(e.target.value))} style={{width:"78px",fontSize:"13px",padding:"7px 8px"}}/>
+            <BtnS onClick={()=>setShowUp(true)} style={{fontSize:"12px",padding:"7px 10px"}}>Beleg</BtnS>
+            <BtnS onClick={exportCSV} style={{fontSize:"12px",padding:"7px 10px"}}>CSV</BtnS>
+            <BtnS onClick={exportBak} style={{fontSize:"12px",padding:"7px 10px"}}>Bak</BtnS>
+            <label style={{background:"#F2F2F7",border:"none",borderRadius:"10px",padding:"9px 10px",color:"#007AFF",fontSize:"12px",fontWeight:500,cursor:"pointer"}}>Imp<input type="file" accept=".json" onChange={importBak} style={{display:"none"}}/></label>
+          </div>
         </div>
-        <div className="card">
-          {upcoming.slice(0,3).map(ev=>(
-            <Row key={ev.id} onClick={()=>openEditEv(ev)}>
-              <div style={{width:"40px",height:"40px",borderRadius:"12px",background:EV_S[ev.status]?.bg||"#F2F2F7",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                <div style={{fontSize:"13px",fontWeight:700,color:EV_S[ev.status]?.c||"#007AFF"}}>{new Date(ev.date).getDate()}</div>
-                <div style={{fontSize:"9px",color:EV_S[ev.status]?.c||"#007AFF"}}>{MONTHS_S[new Date(ev.date).getMonth()]}</div>
-              </div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:"14px",fontWeight:500,color:"#1C1C1E",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ev.title}</div>
-                <div style={{fontSize:"12px",color:"#8E8E93"}}>{ev.client}{ev.loc?" - "+ev.loc:""}</div>
-              </div>
-              <div style={{textAlign:"right",flexShrink:0}}>
-                {ev.income>0 && <div style={{fontSize:"14px",fontWeight:600,color:"#34C759"}}>+{fmt(ev.income)}</div>}
-                {ev.costs>0  && <div style={{fontSize:"12px",color:"#FF3B30"}}>-{fmt(ev.costs)}</div>}
-              </div>
-            </Row>
+        <div style={{maxWidth:"720px",margin:"0 auto",padding:"6px 8px 0",display:"flex",overflowX:"auto",gap:"1px"}}>
+          {TABS.map(t => (
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",padding:"6px 3px",background:"none",border:"none",cursor:"pointer",color:tab===t.id?"#007AFF":"#8E8E93",fontSize:"9px",fontWeight:600,minWidth:"44px",borderRadius:"10px",textTransform:"uppercase",letterSpacing:".03em"}}>
+              {t.l}
+            </button>
           ))}
         </div>
-      </>}
-    </>}
+      </div>
 
-    {/* BUCHUNGEN */}
-    {tab==="entries" && <>
-      <div style={{marginTop:"14px",display:"flex",gap:"8px",flexWrap:"wrap"}}>
-        <Inp value={search} onChange={e=>setSearch(e.target.value)} placeholder="Suchen..." style={{flex:1,minWidth:"120px"}}/>
-        <Sel value={String(fMonth)} options={[{v:"all",l:"Alle Monate"},...MONTHS.map((m,i)=>({v:String(i),l:m}))]} onChange={e=>setFMonth(e.target.value)} style={{width:"115px"}}/>
-      </div>
-      <div style={{display:"flex",justifyContent:"space-between",padding:"8px 2px 4px",fontSize:"12px",color:"#8E8E93"}}>
-        <span>{filtered.length} Eintraege</span><span>{fmt(totInc)} Ein - {fmt(totExp)} Aus</span>
-      </div>
-      <div style={{background:"#fff",borderRadius:"16px",overflow:"hidden"}}>
-        {filtered.length===0 && <div style={{padding:"28px",textAlign:"center",color:"#C7C7CC"}}>Keine Eintraege</div>}
-        {filtered.map(e=>(
-          <Row key={e.id} onClick={()=>openEdit(e)}>
-            <div style={{width:"36px",height:"36px",borderRadius:"10px",background:e.type==="income"?"#F0FFF4":"#FFF5F5",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              <div style={{width:"8px",height:"8px",borderRadius:"50%",background:PAY_S[e.status]?.c||"#8E8E93"}}/>
-            </div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:"14px",fontWeight:500,color:"#1C1C1E",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{e.desc}</div>
-              <div style={{fontSize:"12px",color:"#8E8E93"}}>{e.cat}{e.client?" - "+e.client:""}</div>
-            </div>
-            <div style={{textAlign:"right",flexShrink:0}}>
-              <div style={{fontSize:"14px",fontWeight:600,color:e.type==="income"?"#34C759":"#FF3B30"}}>{e.type==="income"?"+":"-"}{fmt(e.amt)}</div>
-              <div style={{fontSize:"11px",color:"#8E8E93"}}>{fmtD(e.date)}</div>
-            </div>
-            <button onClick={ev=>{ev.stopPropagation();delEntry(e.id);}} style={{background:"none",border:"none",cursor:"pointer",color:"#C7C7CC",fontSize:"18px",padding:"4px"}}>✕</button>
-          </Row>
-        ))}
-      </div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 0 8px"}}>
-        <div style={{fontSize:"16px",fontWeight:700,color:"#1C1C1E"}}>Fixkosten</div>
-        <BtnS onClick={()=>{setEditId(null);setRForm({...ER,cat:expCats[0]});setShowRec(true);}} style={{fontSize:"13px"}}>+ Neu</BtnS>
-      </div>
-      <div style={{background:"#fff",borderRadius:"16px",overflow:"hidden"}}>
-        {recur.map(r=>(
-          <Row key={r.id}>
-            <Sw checked={r.active} onChange={e=>setRecur(p=>p.map(x=>x.id===r.id?{...x,active:e.target.checked}:x))}/>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:"14px",fontWeight:500,color:r.active?"#1C1C1E":"#8E8E93"}}>{r.desc}</div>
-              <div style={{fontSize:"12px",color:"#8E8E93"}}>{FREQ[r.freq]} - {r.next}</div>
-            </div>
-            <div style={{fontSize:"14px",fontWeight:600,color:"#FF3B30",flexShrink:0}}>{fmt(r.amt)}</div>
-            <BtnS onClick={()=>bookRecur(r)} style={{fontSize:"12px",padding:"6px 10px"}}>Buchen</BtnS>
-          </Row>
-        ))}
-      </div>
-    </>}
+      <div style={{maxWidth:"720px",margin:"0 auto",padding:"0 14px"}}>
 
-    {/* KALENDER */}
-    {tab==="cal" && <>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:"14px",marginBottom:"10px"}}>
-        <BtnS onClick={()=>{let m=calM-1,y=calY;if(m<0){m=11;y--;}setCalM(m);setCalY(y);setSelDay(null);}} style={{padding:"8px 14px"}}>‹</BtnS>
-        <div style={{fontSize:"17px",fontWeight:700,color:"#1C1C1E"}}>{MONTHS[calM]} {calY}</div>
-        <BtnS onClick={()=>{let m=calM+1,y=calY;if(m>11){m=0;y++;}setCalM(m);setCalY(y);setSelDay(null);}} style={{padding:"8px 14px"}}>›</BtnS>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:"2px",marginBottom:"4px"}}>
-        {["Mo","Di","Mi","Do","Fr","Sa","So"].map(d=><div key={d} style={{textAlign:"center",fontSize:"11px",fontWeight:600,color:"#8E8E93",padding:"4px 0"}}>{d}</div>)}
-      </div>
-      <div style={{background:"#fff",borderRadius:"16px",padding:"8px"}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:"3px"}}>
-          {Array.from({length:firstDay}).map((_,i)=><div key={"e"+i}/>)}
-          {Array.from({length:daysInM}).map((_,i)=>{
-            const day=i+1,isToday=day===TODAY.getDate()&&calM===TODAY.getMonth()&&calY===TODAY.getFullYear(),isSel=selDay===day,evs=calEvMap[day]||[];
+        {/* HOME */}
+        {tab==="home" && <>
+          {(overdueA>0||openAmt>0) && <div style={{display:"flex",flexDirection:"column",gap:"8px",marginTop:"14px"}}>
+            {overdueA>0 && <div onClick={()=>setTab("entries")} style={{background:"#FFF1F0",borderRadius:"14px",padding:"12px 16px",cursor:"pointer"}}><b style={{color:"#FF3B30"}}>Ueberfaellig: {fmt(overdueA)}</b></div>}
+            {openAmt>0  && <div onClick={()=>setTab("entries")} style={{background:"#FFFBF0",borderRadius:"14px",padding:"12px 16px",cursor:"pointer"}}><b style={{color:"#FF9500"}}>Offen: {fmt(openAmt)}</b></div>}
+          </div>}
+
+          <div style={{marginTop:"14px",background:"linear-gradient(135deg,#007AFF,#5AC8FA)",borderRadius:"20px",padding:"20px"}}>
+            <div style={{fontSize:"13px",color:"rgba(255,255,255,.75)",marginBottom:"4px"}}>{MONTHS[curM]} {fYear}</div>
+            <div style={{fontSize:"26px",fontWeight:700,color:"#fff",marginBottom:"10px"}}>{fmt(curMInc)}</div>
+            <div style={{display:"flex",gap:"20px"}}>
+              <div><div style={{fontSize:"11px",color:"rgba(255,255,255,.65)"}}>Ausgaben</div><div style={{fontSize:"14px",fontWeight:600,color:"rgba(255,255,255,.9)"}}>{fmt(curMExp)}</div></div>
+              <div><div style={{fontSize:"11px",color:"rgba(255,255,255,.65)"}}>Verbleibt</div><div style={{fontSize:"14px",fontWeight:600,color:"rgba(255,255,255,.9)"}}>{fmt(curMInc-curMExp)}</div></div>
+            </div>
+          </div>
+
+          <div style={{display:"flex",gap:"8px",marginTop:"10px"}}>
+            {[{l:"Einnahmen",v:yInc,c:"#34C759"},{l:"Ausgaben",v:yExp,c:"#FF3B30"},{l:"Gewinn",v:yInc-yExp,c:yInc-yExp>=0?"#007AFF":"#FF3B30"}].map(k=>(
+              <div key={k.l} style={{flex:1,background:"#fff",borderRadius:"16px",padding:"14px",minWidth:0}}>
+                <div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>{k.l}</div>
+                <div style={{fontSize:"16px",fontWeight:700,color:k.c,letterSpacing:"-.3px",wordBreak:"break-all"}}>{fmt(k.v)}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{background:"#fff",borderRadius:"16px",padding:"16px",marginTop:"10px"}}>
+            <div style={{fontSize:"14px",fontWeight:600,color:"#1C1C1E",marginBottom:"12px"}}>Monatsverlauf {fYear}</div>
+            <BarChart data={chartData}/>
+          </div>
+
+          {upcoming.length>0 && <>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 0 8px"}}>
+              <div style={{fontSize:"16px",fontWeight:700,color:"#1C1C1E"}}>Naechste Termine</div>
+              <BtnS onClick={()=>setTab("cal")} style={{fontSize:"13px"}}>Kalender</BtnS>
+            </div>
+            <div className="card">
+              {upcoming.slice(0,3).map(ev=>(
+                <Row key={ev.id} onClick={()=>openEditEv(ev)}>
+                  <div style={{width:"40px",height:"40px",borderRadius:"12px",background:EV_S[ev.status]?.bg||"#F2F2F7",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <div style={{fontSize:"13px",fontWeight:700,color:EV_S[ev.status]?.c||"#007AFF"}}>{new Date(ev.date).getDate()}</div>
+                    <div style={{fontSize:"9px",color:EV_S[ev.status]?.c||"#007AFF"}}>{MONTHS_S[new Date(ev.date).getMonth()]}</div>
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:"14px",fontWeight:500,color:"#1C1C1E",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ev.title}</div>
+                    <div style={{fontSize:"12px",color:"#8E8E93"}}>{ev.client}{ev.loc?" - "+ev.loc:""}</div>
+                  </div>
+                  <div style={{textAlign:"right",flexShrink:0}}>
+                    {ev.income>0 && <div style={{fontSize:"14px",fontWeight:600,color:"#34C759"}}>+{fmt(ev.income)}</div>}
+                    {ev.costs>0  && <div style={{fontSize:"12px",color:"#FF3B30"}}>-{fmt(ev.costs)}</div>}
+                  </div>
+                </Row>
+              ))}
+            </div>
+          </>}
+        </>}
+
+        {/* BUCHUNGEN */}
+        {tab==="entries" && <>
+          <div style={{marginTop:"14px",display:"flex",gap:"8px",flexWrap:"wrap"}}>
+            <Inp value={search} onChange={e=>setSearch(e.target.value)} placeholder="Suchen..." style={{flex:1,minWidth:"120px"}}/>
+            <Sel value={String(fMonth)} options={[{v:"all",l:"Alle Monate"},...MONTHS.map((m,i)=>({v:String(i),l:m}))]} onChange={e=>setFMonth(e.target.value)} style={{width:"115px"}}/>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",padding:"8px 2px 4px",fontSize:"12px",color:"#8E8E93"}}>
+            <span>{filtered.length} Eintraege</span><span>{fmt(totInc)} Ein - {fmt(totExp)} Aus</span>
+          </div>
+          <div style={{background:"#fff",borderRadius:"16px",overflow:"hidden"}}>
+            {filtered.length===0 && <div style={{padding:"28px",textAlign:"center",color:"#C7C7CC"}}>Keine Eintraege</div>}
+            {filtered.map(e=>(
+              <Row key={e.id} onClick={()=>openEdit(e)}>
+                <div style={{width:"36px",height:"36px",borderRadius:"10px",background:e.type==="income"?"#F0FFF4":"#FFF5F5",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <div style={{width:"8px",height:"8px",borderRadius:"50%",background:PAY_S[e.status]?.c||"#8E8E93"}}/>
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:"14px",fontWeight:500,color:"#1C1C1E",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{e.desc}</div>
+                  <div style={{fontSize:"12px",color:"#8E8E93"}}>{e.cat}{e.client?" - "+e.client:""}</div>
+                </div>
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  <div style={{fontSize:"14px",fontWeight:600,color:e.type==="income"?"#34C759":"#FF3B30"}}>{e.type==="income"?"+":"-"}{fmt(e.amt)}</div>
+                  <div style={{fontSize:"11px",color:"#8E8E93"}}>{fmtD(e.date)}</div>
+                </div>
+                <button onClick={ev=>{ev.stopPropagation();delEntry(e.id);}} style={{background:"none",border:"none",cursor:"pointer",color:"#C7C7CC",fontSize:"18px",padding:"4px"}}>✕</button>
+              </Row>
+            ))}
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 0 8px"}}>
+            <div style={{fontSize:"16px",fontWeight:700,color:"#1C1C1E"}}>Fixkosten</div>
+            <BtnS onClick={()=>{setEditId(null);setRForm({...ER,cat:expCats[0]});setShowRec(true);}} style={{fontSize:"13px"}}>+ Neu</BtnS>
+          </div>
+          <div style={{background:"#fff",borderRadius:"16px",overflow:"hidden"}}>
+            {recur.map(r=>(
+              <Row key={r.id}>
+                <Sw checked={r.active} onChange={e=>setRecur(p=>p.map(x=>x.id===r.id?{...x,active:e.target.checked}:x))}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:"14px",fontWeight:500,color:r.active?"#1C1C1E":"#8E8E93"}}>{r.desc}</div>
+                  <div style={{fontSize:"12px",color:"#8E8E93"}}>{FREQ[r.freq]} - {r.next}</div>
+                </div>
+                <div style={{fontSize:"14px",fontWeight:600,color:"#FF3B30",flexShrink:0}}>{fmt(r.amt)}</div>
+                <BtnS onClick={()=>bookRecur(r)} style={{fontSize:"12px",padding:"6px 10px"}}>Buchen</BtnS>
+              </Row>
+            ))}
+          </div>
+        </>}
+
+        {/* KALENDER */}
+        {tab==="cal" && <>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:"14px",marginBottom:"10px"}}>
+            <BtnS onClick={()=>{let m=calM-1,y=calY;if(m<0){m=11;y--;}setCalM(m);setCalY(y);setSelDay(null);}} style={{padding:"8px 14px"}}>‹</BtnS>
+            <div style={{fontSize:"17px",fontWeight:700,color:"#1C1C1E"}}>{MONTHS[calM]} {calY}</div>
+            <BtnS onClick={()=>{let m=calM+1,y=calY;if(m>11){m=0;y++;}setCalM(m);setCalY(y);setSelDay(null);}} style={{padding:"8px 14px"}}>›</BtnS>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:"2px",marginBottom:"4px"}}>
+            {["Mo","Di","Mi","Do","Fr","Sa","So"].map(d=><div key={d} style={{textAlign:"center",fontSize:"11px",fontWeight:600,color:"#8E8E93",padding:"4px 0"}}>{d}</div>)}
+          </div>
+          <div style={{background:"#fff",borderRadius:"16px",padding:"8px"}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:"3px"}}>
+              {Array.from({length:firstDay}).map((_,i)=><div key={"e"+i}/>)}
+              {Array.from({length:daysInM}).map((_,i)=>{
+                const day=i+1,isToday=day===TODAY.getDate()&&calM===TODAY.getMonth()&&calY===TODAY.getFullYear(),isSel=selDay===day,evs=calEvMap[day]||[];
+                return (
+                  <div key={day} onClick={()=>setSelDay(isSel?null:day)} style={{borderRadius:"10px",padding:"4px 2px",cursor:"pointer",textAlign:"center",background:isSel?"#007AFF":isToday?"#EBF4FF":"transparent",minHeight:"52px"}}>
+                    <div style={{fontSize:"13px",fontWeight:isToday?700:400,color:isSel?"#fff":isToday?"#007AFF":"#1C1C1E",marginBottom:"3px"}}>{day}</div>
+                    <div style={{display:"flex",gap:"2px",justifyContent:"center"}}>
+                      {evs.slice(0,3).map((ev,j)=><div key={j} style={{width:"6px",height:"6px",borderRadius:"50%",background:isSel?"rgba(255,255,255,.7)":(EV_S[ev.status]?.c||"#007AFF")}}/>)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          {selDay && <>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:"12px",marginBottom:"8px"}}>
+              <div style={{fontSize:"15px",fontWeight:700,color:"#1C1C1E"}}>{selDay}. {MONTHS[calM]}</div>
+              <Btn onClick={()=>openNewEv(selDateS)} style={{fontSize:"13px",padding:"8px 16px"}}>+ Termin</Btn>
+            </div>
+            {selEvs.length===0 ? <div style={{background:"#fff",borderRadius:"14px",padding:"16px",textAlign:"center",color:"#C7C7CC",fontSize:"14px"}}>Kein Termin</div> : (
+              <div style={{background:"#fff",borderRadius:"16px",overflow:"hidden"}}>
+                {selEvs.map(ev=>(
+                  <Row key={ev.id} onClick={()=>openEditEv(ev)}>
+                    <div style={{width:"8px",height:"8px",borderRadius:"50%",background:EV_S[ev.status]?.c||"#007AFF",flexShrink:0}}/>
+                    <div style={{flex:1}}><div style={{fontSize:"14px",fontWeight:500}}>{ev.title}</div><div style={{fontSize:"12px",color:"#8E8E93"}}>{ev.client}</div></div>
+                    <div style={{textAlign:"right"}}>{ev.income>0&&<div style={{fontSize:"13px",fontWeight:600,color:"#34C759"}}>+{fmt(ev.income)}</div>}{ev.costs>0&&<div style={{fontSize:"12px",color:"#FF3B30"}}>-{fmt(ev.costs)}</div>}</div>
+                  </Row>
+                ))}
+              </div>
+            )}
+          </>}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 0 8px"}}>
+            <div style={{fontSize:"16px",fontWeight:700,color:"#1C1C1E"}}>Alle Termine</div>
+            <Btn onClick={()=>openNewEv()} style={{fontSize:"13px",padding:"8px 16px"}}>+ Neu</Btn>
+          </div>
+          <div style={{background:"#fff",borderRadius:"16px",overflow:"hidden"}}>
+            {upcoming.length===0&&<div style={{padding:"24px",textAlign:"center",color:"#C7C7CC",fontSize:"14px"}}>Keine Termine</div>}
+            {upcoming.map(ev=>(
+              <Row key={ev.id} onClick={()=>openEditEv(ev)}>
+                <div style={{width:"42px",height:"42px",borderRadius:"12px",background:EV_S[ev.status]?.bg||"#F2F2F7",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <div style={{fontSize:"12px",fontWeight:700,color:EV_S[ev.status]?.c||"#007AFF"}}>{new Date(ev.date).getDate()}</div>
+                  <div style={{fontSize:"9px",color:EV_S[ev.status]?.c||"#007AFF"}}>{MONTHS_S[new Date(ev.date).getMonth()]}</div>
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:"14px",fontWeight:500,color:"#1C1C1E",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ev.title}</div>
+                  <div style={{fontSize:"12px",color:"#8E8E93"}}>{ev.client}{ev.loc?" - "+ev.loc:""}</div>
+                </div>
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  {ev.income>0&&<div style={{fontSize:"13px",fontWeight:600,color:"#34C759"}}>+{fmt(ev.income)}</div>}
+                  {ev.costs>0&&<div style={{fontSize:"12px",color:"#FF3B30"}}>-{fmt(ev.costs)}</div>}
+                  <div style={{fontSize:"11px",color:"#8E8E93"}}>{EFFORT[ev.effort]||""}</div>
+                </div>
+              </Row>
+            ))}
+          </div>
+        </>}
+
+        {/* PROGNOSE */}
+        {tab==="fore" && <>
+          <div style={{marginTop:"14px",background:"linear-gradient(135deg,#007AFF,#5856D6)",borderRadius:"20px",padding:"20px",marginBottom:"10px"}}>
+            <div style={{fontSize:"13px",color:"rgba(255,255,255,.75)",marginBottom:"4px"}}>Jahr {fYear}</div>
+            <div style={{fontSize:"26px",fontWeight:700,color:"#fff"}}>{fmt(yInc)}</div>
+            <div style={{fontSize:"14px",color:"rgba(255,255,255,.8)",marginTop:"6px"}}>Ausgaben: {fmt(yExp)} | Gewinn: {fmt(yInc-yExp)}</div>
+          </div>
+          {MONTHS.map((m,i)=>{
+            const me=yearEnt.filter(e=>new Date(e.date).getMonth()===i);
+            const inc=sum(me.filter(e=>e.type==="income"),e=>e.amt), exp=sum(me.filter(e=>e.type==="expense"),e=>e.amt);
+            if(!inc&&!exp) return null;
+            const gew=inc-exp;
             return (
-              <div key={day} onClick={()=>setSelDay(isSel?null:day)} style={{borderRadius:"10px",padding:"4px 2px",cursor:"pointer",textAlign:"center",background:isSel?"#007AFF":isToday?"#EBF4FF":"transparent",minHeight:"52px"}}>
-                <div style={{fontSize:"13px",fontWeight:isToday?700:400,color:isSel?"#fff":isToday?"#007AFF":"#1C1C1E",marginBottom:"3px"}}>{day}</div>
-                <div style={{display:"flex",gap:"2px",justifyContent:"center"}}>
-                  {evs.slice(0,3).map((ev,j)=><div key={j} style={{width:"6px",height:"6px",borderRadius:"50%",background:isSel?"rgba(255,255,255,.7)":(EV_S[ev.status]?.c||"#007AFF")}}/>)}
+              <div key={m} style={{background:"#fff",borderRadius:"14px",padding:"14px",marginBottom:"8px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:"6px"}}>
+                  <div style={{fontSize:"15px",fontWeight:600,color:"#1C1C1E"}}>{m}</div>
+                  <div style={{fontSize:"16px",fontWeight:700,color:gew>=0?"#007AFF":"#FF3B30"}}>{fmt(gew)}</div>
+                </div>
+                <div style={{display:"flex",gap:"16px",alignItems:"center"}}>
+                  <div><div style={{fontSize:"11px",color:"#8E8E93"}}>Einnahmen</div><div style={{fontSize:"13px",fontWeight:600,color:"#34C759"}}>{fmt(inc)}</div></div>
+                  <div><div style={{fontSize:"11px",color:"#8E8E93"}}>Ausgaben</div><div style={{fontSize:"13px",fontWeight:600,color:"#FF3B30"}}>{fmt(exp)}</div></div>
+                  <div style={{flex:1}}><div style={{height:"5px",background:"#F2F2F7",borderRadius:"3px",overflow:"hidden"}}><div style={{height:"100%",width:Math.min(100,(inc/(inc+exp||1))*100)+"%",background:"#34C759",borderRadius:"3px"}}/></div></div>
                 </div>
               </div>
             );
           })}
-        </div>
-      </div>
-      {selDay && <>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:"12px",marginBottom:"8px"}}>
-          <div style={{fontSize:"15px",fontWeight:700,color:"#1C1C1E"}}>{selDay}. {MONTHS[calM]}</div>
-          <Btn onClick={()=>openNewEv(selDateS)} style={{fontSize:"13px",padding:"8px 16px"}}>+ Termin</Btn>
-        </div>
-        {selEvs.length===0 ? <div style={{background:"#fff",borderRadius:"14px",padding:"16px",textAlign:"center",color:"#C7C7CC",fontSize:"14px"}}>Kein Termin</div> : (
+        </>}
+
+        {/* KUNDEN */}
+        {tab==="clients" && <>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:"14px",marginBottom:"10px"}}>
+            <div style={{fontSize:"16px",fontWeight:700,color:"#1C1C1E"}}>Kundendatenbank</div>
+            <Btn onClick={()=>{setEditId(null);setClForm(ECL);setShowCl(true);}} style={{fontSize:"13px",padding:"8px 16px"}}>+ Neu</Btn>
+          </div>
           <div style={{background:"#fff",borderRadius:"16px",overflow:"hidden"}}>
-            {selEvs.map(ev=>(
-              <Row key={ev.id} onClick={()=>openEditEv(ev)}>
-                <div style={{width:"8px",height:"8px",borderRadius:"50%",background:EV_S[ev.status]?.c||"#007AFF",flexShrink:0}}/>
-                <div style={{flex:1}}><div style={{fontSize:"14px",fontWeight:500}}>{ev.title}</div><div style={{fontSize:"12px",color:"#8E8E93"}}>{ev.client}</div></div>
-                <div style={{textAlign:"right"}}>{ev.income>0&&<div style={{fontSize:"13px",fontWeight:600,color:"#34C759"}}>+{fmt(ev.income)}</div>}{ev.costs>0&&<div style={{fontSize:"12px",color:"#FF3B30"}}>-{fmt(ev.costs)}</div>}</div>
+            {clientStats.length===0&&<div style={{padding:"28px",textAlign:"center",color:"#C7C7CC"}}>Noch keine Kunden</div>}
+            {clientStats.map(cl=>(
+              <Row key={cl.id} onClick={()=>{setEditId(cl.id);setClForm({name:cl.name,email:cl.email,phone:cl.phone,cat:cl.cat,city:cl.city,notes:cl.notes});setShowCl(true);}}>
+                <div style={{width:"40px",height:"40px",borderRadius:"12px",background:"#F0F7FF",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <div style={{fontSize:"16px",fontWeight:700,color:"#007AFF"}}>{(cl.name||"?")[0].toUpperCase()}</div>
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:"14px",fontWeight:500,color:"#1C1C1E"}}>{cl.name}</div>
+                  <div style={{fontSize:"12px",color:"#8E8E93"}}>{cl.cat}{cl.city?" - "+cl.city:""}</div>
+                </div>
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  <div style={{fontSize:"14px",fontWeight:600,color:"#34C759"}}>{fmt(cl.revenue)}</div>
+                  <div style={{fontSize:"11px",color:"#8E8E93"}}>{cl.bookings} Buchung{cl.bookings!==1?"en":""}</div>
+                </div>
               </Row>
             ))}
           </div>
+        </>}
+
+        {/* FAHRTEN */}
+        {tab==="miles" && <>
+          <div style={{marginTop:"14px",background:"linear-gradient(135deg,#FF9500,#FF6B35)",borderRadius:"20px",padding:"20px",marginBottom:"10px"}}>
+            <div style={{fontSize:"13px",color:"rgba(255,255,255,.75)",marginBottom:"4px"}}>Fahrten {fYear}</div>
+            <div style={{fontSize:"26px",fontWeight:700,color:"#fff"}}>{totalKm} km</div>
+            <div style={{fontSize:"14px",color:"rgba(255,255,255,.8)",marginTop:"6px"}}>Kosten: {fmt(totalCost)} - steuerlich absetzbar</div>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}}>
+            <div style={{fontSize:"16px",fontWeight:700,color:"#1C1C1E"}}>Alle Fahrten</div>
+            <Btn onClick={()=>{setEditId(null);setTrForm(ETR);setShowTr(true);}} style={{fontSize:"13px",padding:"8px 16px"}}>+ Fahrt</Btn>
+          </div>
+          <div style={{background:"#fff",borderRadius:"16px",overflow:"hidden"}}>
+            {trips.length===0&&<div style={{padding:"24px",textAlign:"center",color:"#C7C7CC"}}>Keine Fahrten</div>}
+            {[...trips].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(t=>{
+              const km=t.roundTrip?t.km*2:t.km;
+              return (
+                <Row key={t.id} onClick={()=>{setEditId(t.id);setTrForm({...t,km:String(t.km)});setShowTr(true);}}>
+                  <div style={{width:"38px",height:"38px",borderRadius:"10px",background:"#FFF8F0",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:"18px"}}>🚗</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:"14px",fontWeight:500,color:"#1C1C1E"}}>{t.from} - {t.to}</div>
+                    <div style={{fontSize:"12px",color:"#8E8E93"}}>{t.purpose} - {fmtD(t.date)}{t.roundTrip?" (H+R)":""}</div>
+                  </div>
+                  <div style={{textAlign:"right",flexShrink:0}}>
+                    <div style={{fontSize:"13px",fontWeight:600,color:"#FF9500"}}>{km} km</div>
+                    <div style={{fontSize:"12px",color:"#FF3B30"}}>{fmt(km*t.cpk)}</div>
+                  </div>
+                </Row>
+              );
+            })}
+          </div>
+        </>}
+
+        {/* STEUER */}
+        {tab==="tax" && <>
+          <div style={{marginTop:"14px",background:"linear-gradient(135deg,#007AFF,#34AADC)",borderRadius:"20px",padding:"20px",marginBottom:"10px"}}>
+            <div style={{fontSize:"13px",color:"rgba(255,255,255,.75)",marginBottom:"4px"}}>Steuerrel. Einnahmen {fYear}</div>
+            <div style={{fontSize:"26px",fontWeight:700,color:"#fff"}}>{fmt(taxBase)}</div>
+            <div style={{fontSize:"14px",color:"rgba(255,255,255,.8)",marginTop:"6px"}}>Gesch. MwSt (19%): {fmt(taxBase*0.19)}</div>
+          </div>
+          <div style={{background:"#fff",borderRadius:"16px",overflow:"hidden",marginBottom:"10px"}}>
+            <SRow><span style={{fontSize:"14px",color:"#3A3A3C"}}>Betriebseinnahmen</span><span style={{fontSize:"14px",fontWeight:600,color:"#34C759"}}>+{fmt(yInc)}</span></SRow>
+            <SRow><span style={{fontSize:"14px",color:"#3A3A3C"}}>Betriebsausgaben</span><span style={{fontSize:"14px",fontWeight:600,color:"#FF3B30"}}>-{fmt(yExp)}</span></SRow>
+            <SRow><span style={{fontSize:"14px",color:"#3A3A3C"}}>Fahrtkosten absetzbar</span><span style={{fontSize:"14px",fontWeight:600,color:"#FF9500"}}>-{fmt(totalCost)}</span></SRow>
+            <SRow style={{borderTop:"2px solid #E5E5EA"}}><span style={{fontSize:"16px",fontWeight:700,color:"#1C1C1E"}}>Gewinn / Verlust</span><span style={{fontSize:"16px",fontWeight:700,color:yInc-yExp>=0?"#007AFF":"#FF3B30"}}>{fmt(yInc-yExp)}</span></SRow>
+          </div>
+          <div style={{background:"#fff",borderRadius:"16px",overflow:"hidden",marginBottom:"12px"}}>
+            <div style={{padding:"12px 18px 6px",fontSize:"14px",fontWeight:600,color:"#1C1C1E"}}>Ausgaben nach Kategorie</div>
+            {expByCat.map((c,i)=>(
+              <SRow key={c.n}>
+                <div style={{display:"flex",alignItems:"center",gap:"8px"}}><div style={{width:"10px",height:"10px",borderRadius:"50%",background:COLORS[i%COLORS.length]}}/><span style={{fontSize:"13px",color:"#3A3A3C"}}>{c.n}</span></div>
+                <span style={{fontSize:"13px",fontWeight:500,color:"#FF3B30"}}>{fmt(c.v)}</span>
+              </SRow>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:"10px"}}>
+            <Btn onClick={exportCSV} style={{flex:1}}>CSV Export</Btn>
+            <BtnS onClick={exportBak}>Backup</BtnS>
+          </div>
+        </>}
+
+        {/* KI CHAT */}
+        {tab==="ai" && (
+          <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 180px)"}}>
+            <div style={{background:"#fff",borderRadius:"16px",padding:"12px 16px",marginTop:"14px",marginBottom:"10px"}}>
+              <div style={{fontSize:"13px",fontWeight:600,color:"#1C1C1E"}}>KI-Finanzassistent</div>
+              <div style={{fontSize:"12px",color:"#8E8E93",marginTop:"2px"}}>Ich kenne deine Buchungen, Termine, Kunden und Fahrten.</div>
+            </div>
+            <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:"10px",paddingBottom:"10px"}}>
+              {aiMsgs.map((m,i)=>(
+                <div key={i} style={{background:m.role==="user"?"#007AFF":"#fff",color:m.role==="user"?"#fff":"#1C1C1E",borderRadius:m.role==="user"?"18px 18px 4px 18px":"18px 18px 18px 4px",padding:"10px 14px",fontSize:"14px",maxWidth:"80%",alignSelf:m.role==="user"?"flex-end":"flex-start",lineHeight:1.5,whiteSpace:"pre-wrap",boxShadow:m.role==="ai"?"0 1px 4px rgba(0,0,0,.1)":"none"}}>
+                  {m.content}
+                </div>
+              ))}
+              {aiThink&&<div style={{background:"#fff",borderRadius:"18px 18px 18px 4px",padding:"10px 14px",fontSize:"14px",maxWidth:"80%",alignSelf:"flex-start",color:"#8E8E93",boxShadow:"0 1px 4px rgba(0,0,0,.1)"}}>Analysiere...</div>}
+              <div ref={chatEnd}/>
+            </div>
+            <div style={{display:"flex",gap:"8px",paddingTop:"8px",paddingBottom:"8px"}}>
+              <Inp value={aiInput} onChange={e=>setAiInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&sendAI()} placeholder="Frag deinen Assistenten..." style={{flex:1}}/>
+              <Btn onClick={sendAI} style={{padding:"11px 16px",opacity:aiThink?0.5:1}}>▶</Btn>
+            </div>
+            <div style={{display:"flex",gap:"6px",flexWrap:"wrap",paddingBottom:"4px"}}>
+              {["Groesste Ausgaben?","Was bleibt diesen Monat?","Top Kunden?","Fahrtkosten?"].map(p=>(
+                <button key={p} onClick={()=>setAiInput(p)} style={{background:"#fff",border:"1px solid #E5E5EA",borderRadius:"20px",padding:"6px 12px",fontSize:"12px",color:"#007AFF",cursor:"pointer",fontFamily:"inherit"}}>{p}</button>
+              ))}
+            </div>
+          </div>
         )}
-      </>}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 0 8px"}}>
-        <div style={{fontSize:"16px",fontWeight:700,color:"#1C1C1E"}}>Alle Termine</div>
-        <Btn onClick={()=>openNewEv()} style={{fontSize:"13px",padding:"8px 16px"}}>+ Neu</Btn>
       </div>
-      <div style={{background:"#fff",borderRadius:"16px",overflow:"hidden"}}>
-        {upcoming.length===0&&<div style={{padding:"24px",textAlign:"center",color:"#C7C7CC",fontSize:"14px"}}>Keine Termine</div>}
-        {upcoming.map(ev=>(
-          <Row key={ev.id} onClick={()=>openEditEv(ev)}>
-            <div style={{width:"42px",height:"42px",borderRadius:"12px",background:EV_S[ev.status]?.bg||"#F2F2F7",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              <div style={{fontSize:"12px",fontWeight:700,color:EV_S[ev.status]?.c||"#007AFF"}}>{new Date(ev.date).getDate()}</div>
-              <div style={{fontSize:"9px",color:EV_S[ev.status]?.c||"#007AFF"}}>{MONTHS_S[new Date(ev.date).getMonth()]}</div>
-            </div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:"14px",fontWeight:500,color:"#1C1C1E",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ev.title}</div>
-              <div style={{fontSize:"12px",color:"#8E8E93"}}>{ev.client}{ev.loc?" - "+ev.loc:""}</div>
-            </div>
-            <div style={{textAlign:"right",flexShrink:0}}>
-              {ev.income>0&&<div style={{fontSize:"13px",fontWeight:600,color:"#34C759"}}>+{fmt(ev.income)}</div>}
-              {ev.costs>0&&<div style={{fontSize:"12px",color:"#FF3B30"}}>-{fmt(ev.costs)}</div>}
-              <div style={{fontSize:"11px",color:"#8E8E93"}}>{EFFORT[ev.effort]||""}</div>
-            </div>
-          </Row>
-        ))}
-      </div>
-    </>}
 
-    {/* PROGNOSE */}
-    {tab==="fore" && <>
-      <div style={{marginTop:"14px",background:"linear-gradient(135deg,#007AFF,#5856D6)",borderRadius:"20px",padding:"20px",marginBottom:"10px"}}>
-        <div style={{fontSize:"13px",color:"rgba(255,255,255,.75)",marginBottom:"4px"}}>Jahr {fYear}</div>
-        <div style={{fontSize:"26px",fontWeight:700,color:"#fff"}}>{fmt(yInc)}</div>
-        <div style={{fontSize:"14px",color:"rgba(255,255,255,.8)",marginTop:"6px"}}>Ausgaben: {fmt(yExp)} | Gewinn: {fmt(yInc-yExp)}</div>
-      </div>
-      {MONTHS.map((m,i)=>{
-        const me=yearEnt.filter(e=>new Date(e.date).getMonth()===i);
-        const inc=sum(me.filter(e=>e.type==="income"),e=>e.amt), exp=sum(me.filter(e=>e.type==="expense"),e=>e.amt);
-        if(!inc&&!exp) return null;
-        const gew=inc-exp;
-        return (
-          <div key={m} style={{background:"#fff",borderRadius:"14px",padding:"14px",marginBottom:"8px"}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:"6px"}}>
-              <div style={{fontSize:"15px",fontWeight:600,color:"#1C1C1E"}}>{m}</div>
-              <div style={{fontSize:"16px",fontWeight:700,color:gew>=0?"#007AFF":"#FF3B30"}}>{fmt(gew)}</div>
-            </div>
-            <div style={{display:"flex",gap:"16px",alignItems:"center"}}>
-              <div><div style={{fontSize:"11px",color:"#8E8E93"}}>Einnahmen</div><div style={{fontSize:"13px",fontWeight:600,color:"#34C759"}}>{fmt(inc)}</div></div>
-              <div><div style={{fontSize:"11px",color:"#8E8E93"}}>Ausgaben</div><div style={{fontSize:"13px",fontWeight:600,color:"#FF3B30"}}>{fmt(exp)}</div></div>
-              <div style={{flex:1}}><div style={{height:"5px",background:"#F2F2F7",borderRadius:"3px",overflow:"hidden"}}><div style={{height:"100%",width:Math.min(100,(inc/(inc+exp||1))*100)+"%",background:"#34C759",borderRadius:"3px"}}/></div></div>
-            </div>
+      {/* FAB */}
+      <button onClick={()=>{if(tab==="cal")openNewEv();else if(tab==="clients"){setEditId(null);setClForm(ECL);setShowCl(true);}else if(tab==="miles"){setEditId(null);setTrForm(ETR);setShowTr(true);}else openAdd();}}
+        style={{position:"fixed",bottom:"28px",right:"22px",width:"54px",height:"54px",borderRadius:"50%",background:"#007AFF",border:"none",color:"#fff",fontSize:"28px",cursor:"pointer",boxShadow:"0 4px 20px rgba(0,122,255,.4)",zIndex:50,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+
+      {/* ENTRY MODAL */}
+      <Modal open={showF} onClose={()=>setShowF(false)} title={editId?"Bearbeiten":"Neuer Eintrag"}>
+        <Sec>
+          <Item><Seg options={[{v:"income",l:"+ Einnahme"},{v:"expense",l:"- Ausgabe"}]} value={form.type} onChange={v=>setForm(f=>({...f,type:v,cat:v==="income"?incCats[0]:expCats[0]}))} /></Item>
+          <Item label="Datum"><Inp type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></Item>
+          <Item label="Kategorie">
+            <Sel value={form.cat} options={[...curCats.map(c=>({v:c,l:c})),{v:"__custom__",l:"+ Neue Kategorie..."}]} onChange={e=>setForm(f=>({...f,cat:e.target.value}))}/>
+            {form.cat==="__custom__"&&<Inp value={form.customCat} onChange={e=>setForm(f=>({...f,customCat:e.target.value}))} placeholder="Neue Kategorie..." style={{marginTop:"8px"}}/>}
+          </Item>
+          <Item label="Beschreibung"><Inp value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} placeholder="Wie wurde die Einnahme generiert?"/></Item>
+          {form.type==="income"&&<Item label="Kunde">
+            <Sel value={form.client||""} options={[{v:"",l:"Manuell eingeben"},...clients.map(c=>({v:c.name,l:c.name}))]} onChange={e=>setForm(f=>({...f,client:e.target.value}))}/>
+            {!clients.find(c=>c.name===form.client)&&<Inp value={form.client||""} onChange={e=>setForm(f=>({...f,client:e.target.value}))} placeholder="Kundenname..." style={{marginTop:"8px"}}/>}
+          </Item>}
+        </Sec>
+        <Sec>
+          <Item label="Betrag (Euro)"><Inp type="number" value={form.amt} onChange={e=>setForm(f=>({...f,amt:e.target.value}))} placeholder="0,00"/></Item>
+          {form.type==="income"&&<Item label="Rechnungsnummer"><Inp value={form.inv} onChange={e=>setForm(f=>({...f,inv:e.target.value}))} placeholder="RE-2026-XXX"/></Item>}
+        </Sec>
+        {form.type==="income"&&<Sec><Item label="Zahlungsstatus">
+          <div style={{display:"flex",gap:"6px",marginTop:"4px"}}>
+            {Object.entries(PAY_S).map(([k,v])=>(
+              <button key={k} onClick={()=>setForm(f=>({...f,status:k}))} style={{flex:1,padding:"8px",border:"2px solid "+(form.status===k?v.c:"#E5E5EA"),borderRadius:"10px",background:form.status===k?v.bg:"#F2F2F7",color:form.status===k?v.c:"#8E8E93",cursor:"pointer",fontFamily:"inherit",fontSize:"12px",fontWeight:500}}>{v.l}</button>
+            ))}
           </div>
-        );
-      })}
-    </>}
-
-    {/* KUNDEN */}
-    {tab==="clients" && <>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:"14px",marginBottom:"10px"}}>
-        <div style={{fontSize:"16px",fontWeight:700,color:"#1C1C1E"}}>Kundendatenbank</div>
-        <Btn onClick={()=>{setEditId(null);setClForm(ECL);setShowCl(true);}} style={{fontSize:"13px",padding:"8px 16px"}}>+ Neu</Btn>
-      </div>
-      <div style={{background:"#fff",borderRadius:"16px",overflow:"hidden"}}>
-        {clientStats.length===0&&<div style={{padding:"28px",textAlign:"center",color:"#C7C7CC"}}>Noch keine Kunden</div>}
-        {clientStats.map(cl=>(
-          <Row key={cl.id} onClick={()=>{setEditId(cl.id);setClForm({name:cl.name,email:cl.email,phone:cl.phone,cat:cl.cat,city:cl.city,notes:cl.notes});setShowCl(true);}}>
-            <div style={{width:"40px",height:"40px",borderRadius:"12px",background:"#F0F7FF",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              <div style={{fontSize:"16px",fontWeight:700,color:"#007AFF"}}>{(cl.name||"?")[0].toUpperCase()}</div>
+        </Item></Sec>}
+        <Sec>
+          <Item label="Notiz"><Inp value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))} placeholder="optional"/></Item>
+          <Item>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div><div style={{fontSize:"15px",fontWeight:500,color:"#1C1C1E"}}>Steuerrelevant</div><div style={{fontSize:"12px",color:"#8E8E93"}}>Fuer EUeR</div></div>
+              <Sw checked={form.tax} onChange={e=>setForm(f=>({...f,tax:e.target.checked}))}/>
             </div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:"14px",fontWeight:500,color:"#1C1C1E"}}>{cl.name}</div>
-              <div style={{fontSize:"12px",color:"#8E8E93"}}>{cl.cat}{cl.city?" - "+cl.city:""}</div>
-            </div>
-            <div style={{textAlign:"right",flexShrink:0}}>
-              <div style={{fontSize:"14px",fontWeight:600,color:"#34C759"}}>{fmt(cl.revenue)}</div>
-              <div style={{fontSize:"11px",color:"#8E8E93"}}>{cl.bookings} Buchung{cl.bookings!==1?"en":""}</div>
-            </div>
-          </Row>
-        ))}
-      </div>
-    </>}
-
-    {/* FAHRTEN */}
-    {tab==="miles" && <>
-      <div style={{marginTop:"14px",background:"linear-gradient(135deg,#FF9500,#FF6B35)",borderRadius:"20px",padding:"20px",marginBottom:"10px"}}>
-        <div style={{fontSize:"13px",color:"rgba(255,255,255,.75)",marginBottom:"4px"}}>Fahrten {fYear}</div>
-        <div style={{fontSize:"26px",fontWeight:700,color:"#fff"}}>{totalKm} km</div>
-        <div style={{fontSize:"14px",color:"rgba(255,255,255,.8)",marginTop:"6px"}}>Kosten: {fmt(totalCost)} - steuerlich absetzbar</div>
-      </div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}}>
-        <div style={{fontSize:"16px",fontWeight:700,color:"#1C1C1E"}}>Alle Fahrten</div>
-        <Btn onClick={()=>{setEditId(null);setTrForm(ETR);setShowTr(true);}} style={{fontSize:"13px",padding:"8px 16px"}}>+ Fahrt</Btn>
-      </div>
-      <div style={{background:"#fff",borderRadius:"16px",overflow:"hidden"}}>
-        {trips.length===0&&<div style={{padding:"24px",textAlign:"center",color:"#C7C7CC"}}>Keine Fahrten</div>}
-        {[...trips].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(t=>{
-          const km=t.roundTrip?t.km*2:t.km;
-          return (
-            <Row key={t.id} onClick={()=>{setEditId(t.id);setTrForm({...t,km:String(t.km)});setShowTr(true);}}>
-              <div style={{width:"38px",height:"38px",borderRadius:"10px",background:"#FFF8F0",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:"18px"}}>🚗</div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:"14px",fontWeight:500,color:"#1C1C1E"}}>{t.from} - {t.to}</div>
-                <div style={{fontSize:"12px",color:"#8E8E93"}}>{t.purpose} - {fmtD(t.date)}{t.roundTrip?" (H+R)":""}</div>
-              </div>
-              <div style={{textAlign:"right",flexShrink:0}}>
-                <div style={{fontSize:"13px",fontWeight:600,color:"#FF9500"}}>{km} km</div>
-                <div style={{fontSize:"12px",color:"#FF3B30"}}>{fmt(km*t.cpk)}</div>
-              </div>
-            </Row>
-          );
-        })}
-      </div>
-    </>}
-
-    {/* STEUER */}
-    {tab==="tax" && <>
-      <div style={{marginTop:"14px",background:"linear-gradient(135deg,#007AFF,#34AADC)",borderRadius:"20px",padding:"20px",marginBottom:"10px"}}>
-        <div style={{fontSize:"13px",color:"rgba(255,255,255,.75)",marginBottom:"4px"}}>Steuerrel. Einnahmen {fYear}</div>
-        <div style={{fontSize:"26px",fontWeight:700,color:"#fff"}}>{fmt(taxBase)}</div>
-        <div style={{fontSize:"14px",color:"rgba(255,255,255,.8)",marginTop:"6px"}}>Gesch. MwSt (19%): {fmt(taxBase*0.19)}</div>
-      </div>
-      <div style={{background:"#fff",borderRadius:"16px",overflow:"hidden",marginBottom:"10px"}}>
-        <SRow><span style={{fontSize:"14px",color:"#3A3A3C"}}>Betriebseinnahmen</span><span style={{fontSize:"14px",fontWeight:600,color:"#34C759"}}>+{fmt(yInc)}</span></SRow>
-        <SRow><span style={{fontSize:"14px",color:"#3A3A3C"}}>Betriebsausgaben</span><span style={{fontSize:"14px",fontWeight:600,color:"#FF3B30"}}>-{fmt(yExp)}</span></SRow>
-        <SRow><span style={{fontSize:"14px",color:"#3A3A3C"}}>Fahrtkosten absetzbar</span><span style={{fontSize:"14px",fontWeight:600,color:"#FF9500"}}>-{fmt(totalCost)}</span></SRow>
-        <SRow style={{borderTop:"2px solid #E5E5EA"}}><span style={{fontSize:"16px",fontWeight:700,color:"#1C1C1E"}}>Gewinn / Verlust</span><span style={{fontSize:"16px",fontWeight:700,color:yInc-yExp>=0?"#007AFF":"#FF3B30"}}>{fmt(yInc-yExp)}</span></SRow>
-      </div>
-      <div style={{background:"#fff",borderRadius:"16px",overflow:"hidden",marginBottom:"12px"}}>
-        <div style={{padding:"12px 18px 6px",fontSize:"14px",fontWeight:600,color:"#1C1C1E"}}>Ausgaben nach Kategorie</div>
-        {expByCat.map((c,i)=>(
-          <SRow key={c.n}>
-            <div style={{display:"flex",alignItems:"center",gap:"8px"}}><div style={{width:"10px",height:"10px",borderRadius:"50%",background:COLORS[i%COLORS.length]}}/><span style={{fontSize:"13px",color:"#3A3A3C"}}>{c.n}</span></div>
-            <span style={{fontSize:"13px",fontWeight:500,color:"#FF3B30"}}>{fmt(c.v)}</span>
-          </SRow>
-        ))}
-      </div>
-      <div style={{display:"flex",gap:"10px"}}>
-        <Btn onClick={exportCSV} style={{flex:1}}>CSV Export</Btn>
-        <BtnS onClick={exportBak}>Backup</BtnS>
-      </div>
-    </>}
-
-    {/* KI CHAT */}
-    {tab==="ai" && (
-      <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 180px)"}}>
-        <div style={{background:"#fff",borderRadius:"16px",padding:"12px 16px",marginTop:"14px",marginBottom:"10px"}}>
-          <div style={{fontSize:"13px",fontWeight:600,color:"#1C1C1E"}}>KI-Finanzassistent</div>
-          <div style={{fontSize:"12px",color:"#8E8E93",marginTop:"2px"}}>Ich kenne deine Buchungen, Termine, Kunden und Fahrten.</div>
-        </div>
-        <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:"10px",paddingBottom:"10px"}}>
-          {aiMsgs.map((m,i)=>(
-            <div key={i} style={{background:m.role==="user"?"#007AFF":"#fff",color:m.role==="user"?"#fff":"#1C1C1E",borderRadius:m.role==="user"?"18px 18px 4px 18px":"18px 18px 18px 4px",padding:"10px 14px",fontSize:"14px",maxWidth:"80%",alignSelf:m.role==="user"?"flex-end":"flex-start",lineHeight:1.5,whiteSpace:"pre-wrap",boxShadow:m.role==="ai"?"0 1px 4px rgba(0,0,0,.1)":"none"}}>
-              {m.content}
-            </div>
-          ))}
-          {aiThink&&<div style={{background:"#fff",borderRadius:"18px 18px 18px 4px",padding:"10px 14px",fontSize:"14px",maxWidth:"80%",alignSelf:"flex-start",color:"#8E8E93",boxShadow:"0 1px 4px rgba(0,0,0,.1)"}}>Analysiere...</div>}
-          <div ref={chatEnd}/>
-        </div>
-        <div style={{display:"flex",gap:"8px",paddingTop:"8px",paddingBottom:"8px"}}>
-          <Inp value={aiInput} onChange={e=>setAiInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&sendAI()} placeholder="Frag deinen Assistenten..." style={{flex:1}}/>
-          <Btn onClick={sendAI} style={{padding:"11px 16px",opacity:aiThink?0.5:1}}>▶</Btn>
-        </div>
-        <div style={{display:"flex",gap:"6px",flexWrap:"wrap",paddingBottom:"4px"}}>
-          {["Groesste Ausgaben?","Was bleibt diesen Monat?","Top Kunden?","Fahrtkosten?"].map(p=>(
-            <button key={p} onClick={()=>setAiInput(p)} style={{background:"#fff",border:"1px solid #E5E5EA",borderRadius:"20px",padding:"6px 12px",fontSize:"12px",color:"#007AFF",cursor:"pointer",fontFamily:"inherit"}}>{p}</button>
-          ))}
-        </div>
-      </div>
-    )}
-  </div>
-
-  {/* FAB */}
-  <button onClick={()=>{if(tab==="cal")openNewEv();else if(tab==="clients"){setEditId(null);setClForm(ECL);setShowCl(true);}else if(tab==="miles"){setEditId(null);setTrForm(ETR);setShowTr(true);}else openAdd();}}
-    style={{position:"fixed",bottom:"28px",right:"22px",width:"54px",height:"54px",borderRadius:"50%",background:"#007AFF",border:"none",color:"#fff",fontSize:"28px",cursor:"pointer",boxShadow:"0 4px 20px rgba(0,122,255,.4)",zIndex:50,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
-
-  {/* ENTRY MODAL */}
-  <Modal open={showF} onClose={()=>setShowF(false)} title={editId?"Bearbeiten":"Neuer Eintrag"}>
-    <Sec>
-      <Item><Seg options={[{v:"income",l:"+ Einnahme"},{v:"expense",l:"- Ausgabe"}]} value={form.type} onChange={v=>setForm(f=>({...f,type:v,cat:v==="income"?incCats[0]:expCats[0]}))} /></Item>
-      <Item label="Datum"><Inp type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></Item>
-      <Item label="Kategorie">
-        <Sel value={form.cat} options={[...curCats.map(c=>({v:c,l:c})),{v:"__custom__",l:"+ Neue Kategorie..."}]} onChange={e=>setForm(f=>({...f,cat:e.target.value}))}/>
-        {form.cat==="__custom__"&&<Inp value={form.customCat} onChange={e=>setForm(f=>({...f,customCat:e.target.value}))} placeholder="Neue Kategorie..." style={{marginTop:"8px"}}/>}
-      </Item>
-      <Item label="Beschreibung"><Inp value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} placeholder="Wie wurde die Einnahme generiert?"/></Item>
-      {form.type==="income"&&<Item label="Kunde">
-        <Sel value={form.client||""} options={[{v:"",l:"Manuell eingeben"},...clients.map(c=>({v:c.name,l:c.name}))]} onChange={e=>setForm(f=>({...f,client:e.target.value}))}/>
-        {!clients.find(c=>c.name===form.client)&&<Inp value={form.client||""} onChange={e=>setForm(f=>({...f,client:e.target.value}))} placeholder="Kundenname..." style={{marginTop:"8px"}}/>}
-      </Item>}
-    </Sec>
-    <Sec>
-      <Item label="Betrag (Euro)"><Inp type="number" value={form.amt} onChange={e=>setForm(f=>({...f,amt:e.target.value}))} placeholder="0,00"/></Item>
-      {form.type==="income"&&<Item label="Rechnungsnummer"><Inp value={form.inv} onChange={e=>setForm(f=>({...f,inv:e.target.value}))} placeholder="RE-2026-XXX"/></Item>}
-    </Sec>
-    {form.type==="income"&&<Sec><Item label="Zahlungsstatus">
-      <div style={{display:"flex",gap:"6px",marginTop:"4px"}}>
-        {Object.entries(PAY_S).map(([k,v])=>(
-          <button key={k} onClick={()=>setForm(f=>({...f,status:k}))} style={{flex:1,padding:"8px",border:"2px solid "+(form.status===k?v.c:"#E5E5EA"),borderRadius:"10px",background:form.status===k?v.bg:"#F2F2F7",color:form.status===k?v.c:"#8E8E93",cursor:"pointer",fontFamily:"inherit",fontSize:"12px",fontWeight:500}}>{v.l}</button>
-        ))}
-      </div>
-    </Item></Sec>}
-    <Sec>
-      <Item label="Notiz"><Inp value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))} placeholder="optional"/></Item>
-      <Item>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div><div style={{fontSize:"15px",fontWeight:500,color:"#1C1C1E"}}>Steuerrelevant</div><div style={{fontSize:"12px",color:"#8E8E93"}}>Fuer EUeR</div></div>
-          <Sw checked={form.tax} onChange={e=>setForm(f=>({...f,tax:e.target.checked}))}/>
-        </div>
-      </Item>
-    </Sec>
-    <div style={{display:"flex",gap:"10px"}}>
-      <BtnS onClick={()=>setShowF(false)} style={{flex:1}}>Abbrechen</BtnS>
-      <Btn onClick={saveEntry} style={{flex:2}}>{editId?"Speichern":"Hinzufuegen"}</Btn>
-    </div>
-  </Modal>
-
-  {/* EVENT MODAL */}
-  <Modal open={showEv} onClose={()=>setShowEv(false)} title={editId?"Termin bearbeiten":"Neuer Termin"}>
-    <Sec><Item label="Status">
-      <div style={{display:"flex",gap:"6px",marginTop:"4px"}}>
-        {Object.entries(EV_S).map(([k,v])=>(
-          <button key={k} onClick={()=>setEvForm(f=>({...f,status:k}))} style={{flex:1,padding:"8px 4px",border:"2px solid "+(evForm.status===k?v.c:"#E5E5EA"),borderRadius:"10px",background:evForm.status===k?v.bg:"#F2F2F7",color:evForm.status===k?v.c:"#8E8E93",cursor:"pointer",fontFamily:"inherit",fontSize:"12px",fontWeight:600}}>{v.l}</button>
-        ))}
-      </div>
-    </Item></Sec>
-    <Sec>
-      <Item label="Titel"><Inp value={evForm.title} onChange={e=>setEvForm(f=>({...f,title:e.target.value}))} placeholder="z.B. DJ Set Club Berghain"/></Item>
-      <Item label="Kunde"><Inp value={evForm.client} onChange={e=>setEvForm(f=>({...f,client:e.target.value}))} placeholder="Kundenname"/></Item>
-      <Item label="Ort"><Inp value={evForm.loc} onChange={e=>setEvForm(f=>({...f,loc:e.target.value}))} placeholder="Stadt"/></Item>
-    </Sec>
-    <Sec><Item>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px"}}>
-        <div><div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>Datum</div><Inp type="date" value={evForm.date} onChange={e=>setEvForm(f=>({...f,date:e.target.value}))}/></div>
-        <div><div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>Bis</div><Inp type="date" value={evForm.end} onChange={e=>setEvForm(f=>({...f,end:e.target.value}))}/></div>
-      </div>
-    </Item></Sec>
-    <Sec>
-      <div style={{padding:"12px 16px 6px",fontSize:"13px",fontWeight:600,color:"#1C1C1E"}}>Finanzen</div>
-      <Item>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px"}}>
-          <div><div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>Einnahme (Euro)</div><Inp type="number" value={evForm.income} onChange={e=>setEvForm(f=>({...f,income:e.target.value}))} placeholder="0,00"/></div>
-          <div><div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>Kosten (Euro)</div><Inp type="number" value={evForm.costs} onChange={e=>setEvForm(f=>({...f,costs:e.target.value}))} placeholder="0,00"/></div>
-        </div>
-        {parseFloat(evForm.income)>0&&<div style={{fontSize:"13px",color:"#34C759",fontWeight:600,marginTop:"8px"}}>Netto: {fmt((parseFloat(evForm.income)||0)-(parseFloat(evForm.costs)||0))}</div>}
-      </Item>
-    </Sec>
-    <Sec><Item label="Aufwand"><Seg options={[{v:"low",l:"Gering"},{v:"medium",l:"Mittel"},{v:"high",l:"Hoch"}]} value={evForm.effort} onChange={v=>setEvForm(f=>({...f,effort:v}))}/></Item></Sec>
-    <Sec><Item label="Notizen"><textarea value={evForm.notes} onInput={e=>setEvForm(f=>({...f,notes:e.target.value}))} placeholder="Equipment, Ablauf..." style={{background:"#F2F2F7",border:"none",borderRadius:"10px",padding:"11px 14px",color:"#1C1C1E",fontSize:"15px",outline:"none",width:"100%",resize:"vertical",minHeight:"70px",lineHeight:1.5,fontFamily:"inherit"}}/></Item></Sec>
-    <Sec>
-      <div style={{padding:"12px 16px 4px",fontSize:"13px",fontWeight:600,color:"#1C1C1E"}}>To-Dos</div>
-      <div style={{padding:"0 16px"}}>
-        {evForm.todos.map((t,i)=>(
-          <div key={i} style={{display:"flex",alignItems:"center",gap:"8px",padding:"8px 0",borderBottom:"1px solid #F2F2F7"}}>
-            <input type="checkbox" checked={t.done} onChange={()=>setEvForm(f=>({...f,todos:f.todos.map((x,j)=>j===i?{...x,done:!x.done}:x)}))} style={{accentColor:"#007AFF",width:"17px",height:"17px",flexShrink:0}}/>
-            <span style={{flex:1,fontSize:"14px",textDecoration:t.done?"line-through":"none",color:t.done?"#8E8E93":"#3A3A3C"}}>{t.text}</span>
-            <button onClick={()=>setEvForm(f=>({...f,todos:f.todos.filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",cursor:"pointer",color:"#C7C7CC",fontSize:"16px"}}>✕</button>
-          </div>
-        ))}
-        <div style={{display:"flex",gap:"8px",padding:"10px 0 14px"}}>
-          <Inp value={newTodo} onChange={e=>setNewTodo(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(()=>{if(newTodo.trim()){setEvForm(f=>({...f,todos:[...f.todos,{text:newTodo.trim(),done:false}]}));setNewTodo("");}})() } placeholder="To-Do..." style={{fontSize:"14px"}}/>
-          <BtnS onClick={()=>{if(newTodo.trim()){setEvForm(f=>({...f,todos:[...f.todos,{text:newTodo.trim(),done:false}]}));setNewTodo("");}}} style={{whiteSpace:"nowrap"}}>+ Add</BtnS>
-        </div>
-      </div>
-    </Sec>
-    <div style={{display:"flex",gap:"10px"}}>
-      {editId&&<BtnD onClick={()=>delEv(editId)}>Loeschen</BtnD>}
-      <BtnS onClick={()=>setShowEv(false)} style={{flex:1}}>Abbrechen</BtnS>
-      <Btn onClick={saveEv} style={{flex:2}}>{editId?"Speichern":"Hinzufuegen"}</Btn>
-    </div>
-  </Modal>
-
-  {/* CLIENT MODAL */}
-  <Modal open={showCl} onClose={()=>setShowCl(false)} title={editId?"Kunde bearbeiten":"Neuer Kunde"}>
-    <Sec>
-      <Item label="Name / Firma"><Inp value={clForm.name} onChange={e=>setClForm(f=>({...f,name:e.target.value}))} placeholder="z.B. Club XY GmbH"/></Item>
-      <Item label="Kategorie"><Inp value={clForm.cat} onChange={e=>setClForm(f=>({...f,cat:e.target.value}))} placeholder="Club, Agentur, Privat..."/></Item>
-      <Item label="Stadt"><Inp value={clForm.city} onChange={e=>setClForm(f=>({...f,city:e.target.value}))} placeholder="Berlin"/></Item>
-      <Item label="E-Mail"><Inp type="email" value={clForm.email} onChange={e=>setClForm(f=>({...f,email:e.target.value}))} placeholder="email@..."/></Item>
-      <Item label="Telefon"><Inp type="tel" value={clForm.phone} onChange={e=>setClForm(f=>({...f,phone:e.target.value}))} placeholder="+49..."/></Item>
-      <Item label="Notizen"><textarea value={clForm.notes} onInput={e=>setClForm(f=>({...f,notes:e.target.value}))} placeholder="Hinweise..." style={{background:"#F2F2F7",border:"none",borderRadius:"10px",padding:"11px 14px",color:"#1C1C1E",fontSize:"15px",outline:"none",width:"100%",resize:"vertical",minHeight:"70px",lineHeight:1.5,fontFamily:"inherit"}}/></Item>
-    </Sec>
-    <div style={{display:"flex",gap:"10px"}}>
-      {editId&&<BtnD onClick={()=>delCl(editId)}>Loeschen</BtnD>}
-      <BtnS onClick={()=>setShowCl(false)} style={{flex:1}}>Abbrechen</BtnS>
-      <Btn onClick={saveCl} style={{flex:2}}>Speichern</Btn>
-    </div>
-  </Modal>
-
-  {/* TRIP MODAL */}
-  <Modal open={showTr} onClose={()=>setShowTr(false)} title={editId?"Fahrt bearbeiten":"Neue Fahrt"}>
-    <Sec>
-      <Item label="Datum"><Inp type="date" value={trForm.date} onChange={e=>setTrForm(f=>({...f,date:e.target.value}))}/></Item>
-      <Item>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px"}}>
-          <div><div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>Von</div><Inp value={trForm.from} onChange={e=>setTrForm(f=>({...f,from:e.target.value}))} placeholder="Hamburg"/></div>
-          <div><div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>Nach</div><Inp value={trForm.to} onChange={e=>setTrForm(f=>({...f,to:e.target.value}))} placeholder="Berlin"/></div>
-        </div>
-      </Item>
-      <Item>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px"}}>
-          <div><div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>Kilometer (einfach)</div><Inp type="number" value={trForm.km} onChange={e=>setTrForm(f=>({...f,km:e.target.value}))} placeholder="288"/></div>
-          <div><div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>Euro/km</div><Inp type="number" value={trForm.cpk} onChange={e=>setTrForm(f=>({...f,cpk:parseFloat(e.target.value)||0.30}))} placeholder="0.30"/></div>
-        </div>
-      </Item>
-      <Item label="Zweck"><Inp value={trForm.purpose} onChange={e=>setTrForm(f=>({...f,purpose:e.target.value}))} placeholder="z.B. DJ Auftritt"/></Item>
-      <Item>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div><div style={{fontSize:"15px",fontWeight:500,color:"#1C1C1E"}}>Hin und Zurueck</div><div style={{fontSize:"12px",color:"#8E8E93"}}>km wird verdoppelt</div></div>
-          <Sw checked={trForm.roundTrip} onChange={e=>setTrForm(f=>({...f,roundTrip:e.target.checked}))}/>
-        </div>
-      </Item>
-      {trForm.km&&<Item><div style={{fontSize:"13px",color:"#FF9500",fontWeight:600}}>Gesamt: {trForm.roundTrip?parseFloat(trForm.km)*2:parseFloat(trForm.km)||0} km = {fmt((trForm.roundTrip?parseFloat(trForm.km)*2:parseFloat(trForm.km)||0)*trForm.cpk)}</div></Item>}
-    </Sec>
-    <div style={{display:"flex",gap:"10px"}}>
-      {editId&&<BtnD onClick={()=>delTr(editId)}>Loeschen</BtnD>}
-      <BtnS onClick={()=>setShowTr(false)} style={{flex:1}}>Abbrechen</BtnS>
-      <Btn onClick={saveTr} style={{flex:2}}>Speichern</Btn>
-    </div>
-  </Modal>
-
-  {/* RECUR MODAL */}
-  <Modal open={showRec} onClose={()=>setShowRec(false)} title="Fixkost / Abo">
-    <Sec>
-      <Item label="Beschreibung"><Inp value={rForm.desc} onChange={e=>setRForm(f=>({...f,desc:e.target.value}))} placeholder="z.B. Adobe CC"/></Item>
-      <Item label="Kategorie"><Sel value={rForm.cat} options={expCats.map(c=>({v:c,l:c}))} onChange={e=>setRForm(f=>({...f,cat:e.target.value}))}/></Item>
-      <Item>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px"}}>
-          <div><div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>Betrag (Euro)</div><Inp type="number" value={rForm.amt} onChange={e=>setRForm(f=>({...f,amt:e.target.value}))} placeholder="0,00"/></div>
-          <div><div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>Haeufigkeit</div><Sel value={rForm.freq} options={Object.entries(FREQ).map(([k,v])=>({v:k,l:v}))} onChange={e=>setRForm(f=>({...f,freq:e.target.value}))}/></div>
-        </div>
-      </Item>
-      <Item label="Naechste Faelligkeit"><Inp type="date" value={rForm.next} onChange={e=>setRForm(f=>({...f,next:e.target.value}))}/></Item>
-    </Sec>
-    <div style={{display:"flex",gap:"10px"}}>
-      <BtnS onClick={()=>setShowRec(false)} style={{flex:1}}>Abbrechen</BtnS>
-      <Btn onClick={()=>{if(!rForm.desc||!rForm.amt)return;const r={...rForm,amt:parseFloat(rForm.amt),id:editId||Date.now()};if(editId)setRecur(p=>p.map(x=>x.id===editId?r:x));else setRecur(p=>[...p,r]);setShowRec(false);}} style={{flex:2}}>Speichern</Btn>
-    </div>
-  </Modal>
-
-  {/* UPLOAD MODAL */}
-  <Modal open={showUp} onClose={()=>{setShowUp(false);setUpRes(null);}} title="Beleg analysieren">
-    <div style={{fontSize:"13px",color:"#8E8E93",marginBottom:"8px"}}>KI erkennt Betrag, Datum und Kategorie automatisch.</div>
-    {!upRes&&!upLoad&&(
-      <div onDragOver={e=>{e.preventDefault();}} onDrop={e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f)analyzeFile(f);}}
-        onClick={()=>document.getElementById("belf2")&&document.getElementById("belf2").click()}
-        style={{border:"2px dashed #C7C7CC",borderRadius:"14px",padding:"28px 20px",textAlign:"center",cursor:"pointer"}}>
-        <div style={{fontSize:"32px",marginBottom:"8px"}}>📄</div>
-        <div style={{fontSize:"15px",fontWeight:600,color:"#3A3A3C"}}>Rechnung tippen oder ablegen</div>
-        <div style={{fontSize:"13px",color:"#8E8E93",marginTop:"4px"}}>JPG / PNG / PDF</div>
-        <input id="belf2" type="file" accept="image/*,.pdf" onChange={e=>{const f=e.target.files[0];if(f)analyzeFile(f);}} style={{display:"none"}}/>
-      </div>
-    )}
-    {upLoad&&<div style={{textAlign:"center",padding:"40px 20px"}}>
-      <div style={{width:"40px",height:"40px",border:"3px solid #E5E5EA",borderTopColor:"#007AFF",borderRadius:"50%",animation:"spin 1s linear infinite",margin:"0 auto 12px"}}/>
-      <div style={{fontSize:"15px",fontWeight:600,color:"#1C1C1E"}}>KI analysiert...</div>
-    </div>}
-    {upRes&&!upRes.error&&(
-      <div>
-        <div style={{background:upRes.confidence>=80?"#F0FFF4":"#FFFBF0",borderRadius:"14px",padding:"14px",marginBottom:"12px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:"10px"}}>
-            <div style={{fontSize:"13px",fontWeight:600,color:upRes.confidence>=80?"#34C759":"#FF9500"}}>{upRes.type==="income"?"Ausgangsrechnung":"Eingangsrechnung"} erkannt</div>
-            <div style={{fontSize:"12px",color:"#8E8E93"}}>{upRes.confidence}%</div>
-          </div>
-          {[["Datum",upRes.date||""],["Beschreibung",upRes.description||""],["Aussteller",upRes.vendor||""],["Betrag",upRes.amount?fmt(upRes.amount):""],["Kategorie",upRes.suggestedCategory||""],["Rech.Nr.",upRes.invoiceNumber||"-"]].map(([k,v])=>(
-            <div key={k} style={{display:"flex",gap:"12px",padding:"6px 0",borderBottom:"1px solid rgba(0,0,0,.06)",fontSize:"14px"}}>
-              <span style={{color:"#8E8E93",minWidth:"90px",flexShrink:0}}>{k}</span>
-              <span style={{color:"#1C1C1E",fontWeight:500}}>{v}</span>
-            </div>
-          ))}
-        </div>
+          </Item>
+        </Sec>
         <div style={{display:"flex",gap:"10px"}}>
-          <BtnS onClick={()=>setUpRes(null)} style={{flex:1}}>Neu</BtnS>
-          <Btn onClick={applyUpload} style={{flex:2}}>Automatisch eintragen</Btn>
+          <BtnS onClick={()=>setShowF(false)} style={{flex:1}}>Abbrechen</BtnS>
+          <Btn onClick={saveEntry} style={{flex:2}}>{editId?"Speichern":"Hinzufuegen"}</Btn>
         </div>
-      </div>
-    )}
-    {upRes?.error&&<div style={{background:"#FFF1F0",borderRadius:"14px",padding:"18px",textAlign:"center"}}>
-      <div style={{fontSize:"14px",color:"#FF3B30",marginBottom:"10px"}}>{upRes.error}</div>
-      <BtnS onClick={()=>setUpRes(null)}>Erneut</BtnS>
-    </div>}
-  </Modal>
-</div>
-```
+      </Modal>
 
-);
+      {/* EVENT MODAL */}
+      <Modal open={showEv} onClose={()=>setShowEv(false)} title={editId?"Termin bearbeiten":"Neuer Termin"}>
+        <Sec><Item label="Status">
+          <div style={{display:"flex",gap:"6px",marginTop:"4px"}}>
+            {Object.entries(EV_S).map(([k,v])=>(
+              <button key={k} onClick={()=>setEvForm(f=>({...f,status:k}))} style={{flex:1,padding:"8px 4px",border:"2px solid "+(evForm.status===k?v.c:"#E5E5EA"),borderRadius:"10px",background:evForm.status===k?v.bg:"#F2F2F7",color:evForm.status===k?v.c:"#8E8E93",cursor:"pointer",fontFamily:"inherit",fontSize:"12px",fontWeight:600}}>{v.l}</button>
+            ))}
+          </div>
+        </Item></Sec>
+        <Sec>
+          <Item label="Titel"><Inp value={evForm.title} onChange={e=>setEvForm(f=>({...f,title:e.target.value}))} placeholder="z.B. DJ Set Club Berghain"/></Item>
+          <Item label="Kunde"><Inp value={evForm.client} onChange={e=>setEvForm(f=>({...f,client:e.target.value}))} placeholder="Kundenname"/></Item>
+          <Item label="Ort"><Inp value={evForm.loc} onChange={e=>setEvForm(f=>({...f,loc:e.target.value}))} placeholder="Stadt"/></Item>
+        </Sec>
+        <Sec><Item>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px"}}>
+            <div><div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>Datum</div><Inp type="date" value={evForm.date} onChange={e=>setEvForm(f=>({...f,date:e.target.value}))}/></div>
+            <div><div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>Bis</div><Inp type="date" value={evForm.end} onChange={e=>setEvForm(f=>({...f,end:e.target.value}))}/></div>
+          </div>
+        </Item></Sec>
+        <Sec>
+          <div style={{padding:"12px 16px 6px",fontSize:"13px",fontWeight:600,color:"#1C1C1E"}}>Finanzen</div>
+          <Item>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px"}}>
+              <div><div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>Einnahme (Euro)</div><Inp type="number" value={evForm.income} onChange={e=>setEvForm(f=>({...f,income:e.target.value}))} placeholder="0,00"/></div>
+              <div><div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>Kosten (Euro)</div><Inp type="number" value={evForm.costs} onChange={e=>setEvForm(f=>({...f,costs:e.target.value}))} placeholder="0,00"/></div>
+            </div>
+            {parseFloat(evForm.income)>0&&<div style={{fontSize:"13px",color:"#34C759",fontWeight:600,marginTop:"8px"}}>Netto: {fmt((parseFloat(evForm.income)||0)-(parseFloat(evForm.costs)||0))}</div>}
+          </Item>
+        </Sec>
+        <Sec><Item label="Aufwand"><Seg options={[{v:"low",l:"Gering"},{v:"medium",l:"Mittel"},{v:"high",l:"Hoch"}]} value={evForm.effort} onChange={v=>setEvForm(f=>({...f,effort:v}))}/></Item></Sec>
+        <Sec><Item label="Notizen"><textarea value={evForm.notes} onInput={e=>setEvForm(f=>({...f,notes:e.target.value}))} placeholder="Equipment, Ablauf..." style={{background:"#F2F2F7",border:"none",borderRadius:"10px",padding:"11px 14px",color:"#1C1C1E",fontSize:"15px",outline:"none",width:"100%",resize:"vertical",minHeight:"70px",lineHeight:1.5,fontFamily:"inherit"}}/></Item></Sec>
+        <Sec>
+          <div style={{padding:"12px 16px 4px",fontSize:"13px",fontWeight:600,color:"#1C1C1E"}}>To-Dos</div>
+          <div style={{padding:"0 16px"}}>
+            {evForm.todos.map((t,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:"8px",padding:"8px 0",borderBottom:"1px solid #F2F2F7"}}>
+                <input type="checkbox" checked={t.done} onChange={()=>setEvForm(f=>({...f,todos:f.todos.map((x,j)=>j===i?{...x,done:!x.done}:x)}))} style={{accentColor:"#007AFF",width:"17px",height:"17px",flexShrink:0}}/>
+                <span style={{flex:1,fontSize:"14px",textDecoration:t.done?"line-through":"none",color:t.done?"#8E8E93":"#3A3A3C"}}>{t.text}</span>
+                <button onClick={()=>setEvForm(f=>({...f,todos:f.todos.filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",cursor:"pointer",color:"#C7C7CC",fontSize:"16px"}}>✕</button>
+              </div>
+            ))}
+            <div style={{display:"flex",gap:"8px",padding:"10px 0 14px"}}>
+              <Inp value={newTodo} onChange={e=>setNewTodo(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(()=>{if(newTodo.trim()){setEvForm(f=>({...f,todos:[...f.todos,{text:newTodo.trim(),done:false}]}));setNewTodo("");}})() } placeholder="To-Do..." style={{fontSize:"14px"}}/>
+              <BtnS onClick={()=>{if(newTodo.trim()){setEvForm(f=>({...f,todos:[...f.todos,{text:newTodo.trim(),done:false}]}));setNewTodo("");}}} style={{whiteSpace:"nowrap"}}>+ Add</BtnS>
+            </div>
+          </div>
+        </Sec>
+        <div style={{display:"flex",gap:"10px"}}>
+          {editId&&<BtnD onClick={()=>delEv(editId)}>Loeschen</BtnD>}
+          <BtnS onClick={()=>setShowEv(false)} style={{flex:1}}>Abbrechen</BtnS>
+          <Btn onClick={saveEv} style={{flex:2}}>{editId?"Speichern":"Hinzufuegen"}</Btn>
+        </div>
+      </Modal>
+
+      {/* CLIENT MODAL */}
+      <Modal open={showCl} onClose={()=>setShowCl(false)} title={editId?"Kunde bearbeiten":"Neuer Kunde"}>
+        <Sec>
+          <Item label="Name / Firma"><Inp value={clForm.name} onChange={e=>setClForm(f=>({...f,name:e.target.value}))} placeholder="z.B. Club XY GmbH"/></Item>
+          <Item label="Kategorie"><Inp value={clForm.cat} onChange={e=>setClForm(f=>({...f,cat:e.target.value}))} placeholder="Club, Agentur, Privat..."/></Item>
+          <Item label="Stadt"><Inp value={clForm.city} onChange={e=>setClForm(f=>({...f,city:e.target.value}))} placeholder="Berlin"/></Item>
+          <Item label="E-Mail"><Inp type="email" value={clForm.email} onChange={e=>setClForm(f=>({...f,email:e.target.value}))} placeholder="email@..."/></Item>
+          <Item label="Telefon"><Inp type="tel" value={clForm.phone} onChange={e=>setClForm(f=>({...f,phone:e.target.value}))} placeholder="+49..."/></Item>
+          <Item label="Notizen"><textarea value={clForm.notes} onInput={e=>setClForm(f=>({...f,notes:e.target.value}))} placeholder="Hinweise..." style={{background:"#F2F2F7",border:"none",borderRadius:"10px",padding:"11px 14px",color:"#1C1C1E",fontSize:"15px",outline:"none",width:"100%",resize:"vertical",minHeight:"70px",lineHeight:1.5,fontFamily:"inherit"}}/></Item>
+        </Sec>
+        <div style={{display:"flex",gap:"10px"}}>
+          {editId&&<BtnD onClick={()=>delCl(editId)}>Loeschen</BtnD>}
+          <BtnS onClick={()=>setShowCl(false)} style={{flex:1}}>Abbrechen</BtnS>
+          <Btn onClick={saveCl} style={{flex:2}}>Speichern</Btn>
+        </div>
+      </Modal>
+
+      {/* TRIP MODAL */}
+      <Modal open={showTr} onClose={()=>setShowTr(false)} title={editId?"Fahrt bearbeiten":"Neue Fahrt"}>
+        <Sec>
+          <Item label="Datum"><Inp type="date" value={trForm.date} onChange={e=>setTrForm(f=>({...f,date:e.target.value}))}/></Item>
+          <Item>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px"}}>
+              <div><div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>Von</div><Inp value={trForm.from} onChange={e=>setTrForm(f=>({...f,from:e.target.value}))} placeholder="Hamburg"/></div>
+              <div><div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>Nach</div><Inp value={trForm.to} onChange={e=>setTrForm(f=>({...f,to:e.target.value}))} placeholder="Berlin"/></div>
+            </div>
+          </Item>
+          <Item>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px"}}>
+              <div><div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>Kilometer (einfach)</div><Inp type="number" value={trForm.km} onChange={e=>setTrForm(f=>({...f,km:e.target.value}))} placeholder="288"/></div>
+              <div><div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>Euro/km</div><Inp type="number" value={trForm.cpk} onChange={e=>setTrForm(f=>({...f,cpk:parseFloat(e.target.value)||0.30}))} placeholder="0.30"/></div>
+            </div>
+          </Item>
+          <Item label="Zweck"><Inp value={trForm.purpose} onChange={e=>setTrForm(f=>({...f,purpose:e.target.value}))} placeholder="z.B. DJ Auftritt"/></Item>
+          <Item>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div><div style={{fontSize:"15px",fontWeight:500,color:"#1C1C1E"}}>Hin und Zurueck</div><div style={{fontSize:"12px",color:"#8E8E93"}}>km wird verdoppelt</div></div>
+              <Sw checked={trForm.roundTrip} onChange={e=>setTrForm(f=>({...f,roundTrip:e.target.checked}))}/>
+            </div>
+          </Item>
+          {trForm.km&&<Item><div style={{fontSize:"13px",color:"#FF9500",fontWeight:600}}>Gesamt: {trForm.roundTrip?parseFloat(trForm.km)*2:parseFloat(trForm.km)||0} km = {fmt((trForm.roundTrip?parseFloat(trForm.km)*2:parseFloat(trForm.km)||0)*trForm.cpk)}</div></Item>}
+        </Sec>
+        <div style={{display:"flex",gap:"10px"}}>
+          {editId&&<BtnD onClick={()=>delTr(editId)}>Loeschen</BtnD>}
+          <BtnS onClick={()=>setShowTr(false)} style={{flex:1}}>Abbrechen</BtnS>
+          <Btn onClick={saveTr} style={{flex:2}}>Speichern</Btn>
+        </div>
+      </Modal>
+
+      {/* RECUR MODAL */}
+      <Modal open={showRec} onClose={()=>setShowRec(false)} title="Fixkost / Abo">
+        <Sec>
+          <Item label="Beschreibung"><Inp value={rForm.desc} onChange={e=>setRForm(f=>({...f,desc:e.target.value}))} placeholder="z.B. Adobe CC"/></Item>
+          <Item label="Kategorie"><Sel value={rForm.cat} options={expCats.map(c=>({v:c,l:c}))} onChange={e=>setRForm(f=>({...f,cat:e.target.value}))}/></Item>
+          <Item>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px"}}>
+              <div><div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>Betrag (Euro)</div><Inp type="number" value={rForm.amt} onChange={e=>setRForm(f=>({...f,amt:e.target.value}))} placeholder="0,00"/></div>
+              <div><div style={{fontSize:"12px",color:"#8E8E93",marginBottom:"5px"}}>Haeufigkeit</div><Sel value={rForm.freq} options={Object.entries(FREQ).map(([k,v])=>({v:k,l:v}))} onChange={e=>setRForm(f=>({...f,freq:e.target.value}))}/></div>
+            </div>
+          </Item>
+          <Item label="Naechste Faelligkeit"><Inp type="date" value={rForm.next} onChange={e=>setRForm(f=>({...f,next:e.target.value}))}/></Item>
+        </Sec>
+        <div style={{display:"flex",gap:"10px"}}>
+          <BtnS onClick={()=>setShowRec(false)} style={{flex:1}}>Abbrechen</BtnS>
+          <Btn onClick={()=>{if(!rForm.desc||!rForm.amt)return;const r={...rForm,amt:parseFloat(rForm.amt),id:editId||Date.now()};if(editId)setRecur(p=>p.map(x=>x.id===editId?r:x));else setRecur(p=>[...p,r]);setShowRec(false);}} style={{flex:2}}>Speichern</Btn>
+        </div>
+      </Modal>
+
+      {/* UPLOAD MODAL */}
+      <Modal open={showUp} onClose={()=>{setShowUp(false);setUpRes(null);}} title="Beleg analysieren">
+        <div style={{fontSize:"13px",color:"#8E8E93",marginBottom:"8px"}}>KI erkennt Betrag, Datum und Kategorie automatisch.</div>
+        {!upRes&&!upLoad&&(
+          <div onDragOver={e=>{e.preventDefault();}} onDrop={e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f)analyzeFile(f);}}
+            onClick={()=>document.getElementById("belf2")&&document.getElementById("belf2").click()}
+            style={{border:"2px dashed #C7C7CC",borderRadius:"14px",padding:"28px 20px",textAlign:"center",cursor:"pointer"}}>
+            <div style={{fontSize:"32px",marginBottom:"8px"}}>📄</div>
+            <div style={{fontSize:"15px",fontWeight:600,color:"#3A3A3C"}}>Rechnung tippen oder ablegen</div>
+            <div style={{fontSize:"13px",color:"#8E8E93",marginTop:"4px"}}>JPG / PNG / PDF</div>
+            <input id="belf2" type="file" accept="image/*,.pdf" onChange={e=>{const f=e.target.files[0];if(f)analyzeFile(f);}} style={{display:"none"}}/>
+          </div>
+        )}
+        {upLoad&&<div style={{textAlign:"center",padding:"40px 20px"}}>
+          <div style={{width:"40px",height:"40px",border:"3px solid #E5E5EA",borderTopColor:"#007AFF",borderRadius:"50%",animation:"spin 1s linear infinite",margin:"0 auto 12px"}}/>
+          <div style={{fontSize:"15px",fontWeight:600,color:"#1C1C1E"}}>KI analysiert...</div>
+        </div>}
+        {upRes&&!upRes.error&&(
+          <div>
+            <div style={{background:upRes.confidence>=80?"#F0FFF4":"#FFFBF0",borderRadius:"14px",padding:"14px",marginBottom:"12px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:"10px"}}>
+                <div style={{fontSize:"13px",fontWeight:600,color:upRes.confidence>=80?"#34C759":"#FF9500"}}>{upRes.type==="income"?"Ausgangsrechnung":"Eingangsrechnung"} erkannt</div>
+                <div style={{fontSize:"12px",color:"#8E8E93"}}>{upRes.confidence}%</div>
+              </div>
+              {[["Datum",upRes.date||""],["Beschreibung",upRes.description||""],["Aussteller",upRes.vendor||""],["Betrag",upRes.amount?fmt(upRes.amount):""],["Kategorie",upRes.suggestedCategory||""],["Rech.Nr.",upRes.invoiceNumber||"-"]].map(([k,v])=>(
+                <div key={k} style={{display:"flex",gap:"12px",padding:"6px 0",borderBottom:"1px solid rgba(0,0,0,.06)",fontSize:"14px"}}>
+                  <span style={{color:"#8E8E93",minWidth:"90px",flexShrink:0}}>{k}</span>
+                  <span style={{color:"#1C1C1E",fontWeight:500}}>{v}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:"10px"}}>
+              <BtnS onClick={()=>setUpRes(null)} style={{flex:1}}>Neu</BtnS>
+              <Btn onClick={applyUpload} style={{flex:2}}>Automatisch eintragen</Btn>
+            </div>
+          </div>
+        )}
+        {upRes?.error&&<div style={{background:"#FFF1F0",borderRadius:"14px",padding:"18px",textAlign:"center"}}>
+          <div style={{fontSize:"14px",color:"#FF3B30",marginBottom:"10px"}}>{upRes.error}</div>
+          <BtnS onClick={()=>setUpRes(null)}>Erneut</BtnS>
+        </div>}
+      </Modal>
+    </div>
+  );
 }
 
-ReactDOM.createRoot(document.getElementById(‘root’)).render(React.createElement(App));
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App, null));
 </script>
 
 </body>
